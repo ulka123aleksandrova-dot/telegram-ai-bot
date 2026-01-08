@@ -52,12 +52,9 @@ async def chat(message: Message):
         answer = (resp.output_text or "").strip() or "Я задумался 😅 Попробуй ещё раз."
         await message.answer(answer)
 
-    except Exception as e:
-        log.exception("OpenAI error: %s", e)
-        await message.answer(
-            "⚠️ Сейчас я не могу обратиться к OpenAI (ограничение региона/доступа).\n"
-            "Чтобы работало стабильно у всех — нужно запустить бота на VPS за границей."
-        )
+   except Exception as e:
+    log.exception("OpenAI error: %s", e)
+    await message.answer(f"⚠️ OpenAI ошибка: {e}")
 
 
 async def main():
@@ -70,4 +67,5 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
