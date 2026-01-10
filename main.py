@@ -37,6 +37,15 @@ bot = Bot(token=TELEGRAM_BOT_TOKEN)
 dp = Dispatcher()
 client = OpenAI(api_key=OPENAI_API_KEY)
 
+@dp.message(F.photo)
+async def get_photo_file_id(message: Message):
+    photo = message.photo[-1]
+    await message.answer(f"📸 file_id:\n{photo.file_id}")
+
+@dp.message(F.video)
+async def get_video_file_id(message: Message):
+    await message.answer(f"🎥 file_id:\n{message.video.file_id}")
+
 MODEL = "gpt-4o-mini-2024-07-18"
 SYSTEM_PROMPT = "Ты дружелюбный Telegram-бот помощник. Отвечай кратко и понятно."
 
@@ -101,6 +110,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
