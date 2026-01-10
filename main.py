@@ -67,7 +67,7 @@ async def chat(message: Message):
         await message.answer(answer or "Я задумался 😅 Попробуй иначе.")
     except Exception as e:
         log.exception("OpenAI error: %s", e)
-        await message.answer(f"⚠️ OpenAI ошибка: {e}")
+    await message.answer("⚠️ Сейчас я немного перегружен. Попробуй через минуту 🙂")
 
 
 async def on_startup(app: web.Application):
@@ -101,3 +101,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
