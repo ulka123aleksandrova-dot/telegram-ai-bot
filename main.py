@@ -62,12 +62,13 @@ async def chat(message: Message):
         )
         return (resp.output_text or "").strip()
 
-   try:
+try:
     answer = await asyncio.to_thread(call_openai, message.text)
     await message.answer(answer or "Я задумался 😅 Попробуй иначе.")
 except Exception as e:
     log.exception("OpenAI error: %s", e)
     await message.answer("⚠️ Сейчас я немного перегружен. Попробуй через минуту 🙂")
+
 
 async def on_startup(app: web.Application):
     await bot.delete_webhook(drop_pending_updates=True)
@@ -100,5 +101,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
