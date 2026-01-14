@@ -22,7 +22,10 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 WEBHOOK_BASE = os.getenv("WEBHOOK_BASE")              # https://....up.railway.app
 WEBHOOK_PATH = os.getenv("WEBHOOK_PATH", "/tg/webhook")
-WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET", "change-me")
+WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET")
+if not WEBHOOK_SECRET:
+    raise RuntimeError("Не найден WEBHOOK_SECRET (Railway Variables)")
+
 
 PORT = int(os.getenv("PORT", "8080"))                 # Railway сам задаёт PORT
 
@@ -36,15 +39,6 @@ if not WEBHOOK_BASE:
 bot = Bot(token=TELEGRAM_BOT_TOKEN)
 dp = Dispatcher()
 client = OpenAI(api_key=OPENAI_API_KEY)
-
-@dp.message(F.photo)
-async def get_photo_file_id(message: Message):
-    photo = message.photo[-1]
-    await message.answer(f"📸 file_id:\n{photo.file_id}")
-
-@dp.message(F.video)
-async def get_video_file_id(message: Message):
-    await message.answer(f"🎥 file_id:\n{message.video.file_id}")
 
 MODEL = "gpt-4o-mini-2024-07-18"
 SYSTEM_PROMPT = "Ты дружелюбный Telegram-бот помощник. Отвечай кратко и понятно."
@@ -110,6 +104,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
