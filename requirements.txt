@@ -2,3 +2,4 @@ aiogram
 openai
 python-dotenv
 aiohttp
+pyyaml
