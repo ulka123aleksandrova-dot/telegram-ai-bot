@@ -1,5 +1,5 @@
 aiogram
-openai
-python-dotenv
 aiohttp
-pyyaml
+python-dotenv
+openai
+PyYAML
