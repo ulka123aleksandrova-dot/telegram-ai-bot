@@ -1,5 +1,5 @@
-aiogram
-aiohttp
-python-dotenv
-openai
-PyYAML
+aiogram==3.4.1
+aiohttp==3.9.5
+python-dotenv==1.0.1
+openai==1.40.6
+PyYAML==6.0.2
