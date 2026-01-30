@@ -762,13 +762,14 @@ async def chat(message: Message):
     start_ts = time.time()
 
     def call_openai_sync(messages: List[dict]) -> str:
-        resp = client.responses.create(
-            model=MODEL,
-            input=messages,
-            temperature=0.5,
-            max_output_tokens=260,
-        )
-        return (resp.output_text or "").strip()
+    resp = client.chat.completions.create(
+        model=MODEL,
+        messages=messages,
+        temperature=0.5,
+        max_tokens=220,
+    )
+    content = resp.choices[0].message.content or ""
+    return content.strip()
 
     try:
         sys = build_system_prompt(uid)
@@ -839,3 +840,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
