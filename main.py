@@ -771,36 +771,37 @@ def call_openai_sync(messages: List[dict]) -> str:
     )
     return resp.choices[0].message.content.strip()
 
+try:
+    sys = build_system_prompt(uid)
+    msgs = [{"role": "system", "content": sys}]
+    msgs.extend(st.history[-HISTORY_MAX_TURNS * 2 :])
+    msgs.append({"role": "user", "content": text})
+
+    answer = await asyncio.to_thread(call_openai_sync, msgs)
+
+    elapsed = time.time() - start_ts
+    if elapsed < 3.0:
+        await asyncio.sleep(3.0 - elapsed)
+
+    parts = split_answer(answer, max_chars=850)
+    if not parts:
+        parts = ["Я задумалась 😅 Напишите чуть иначе — и я помогу."]
+    for p in parts:
+        await message.answer(p)
+
+    add_history(uid, "assistant", answer)
+    st.stage = Stage.NORMAL
+
+except Exception as e:
+    log.exception("OpenAI error: %s", e)
+    await message.answer("⚠️ Сейчас я немного перегружена. Попробуйте через минуту 🙂")
+
+finally:
+    stop_event.set()
     try:
-        sys = build_system_prompt(uid)
-        msgs = [{"role": "system", "content": sys}]
-        msgs.extend(st.history[-HISTORY_MAX_TURNS * 2:])
-        msgs.append({"role": "user", "content": text})
-
-        answer = await asyncio.to_thread(call_openai_sync, msgs)
-
-        elapsed = time.time() - start_ts
-        if elapsed < 1.5:
-            await asyncio.sleep(1.5 - elapsed)
-
-        parts = split_answer(answer, max_chars=850)
-        if not parts:
-            parts = ["Извините, я не совсем поняла запрос 🙈 Подскажите, пожалуйста, что именно Вы хотите узнать?"]
-        for p in parts:
-            await message.answer(p)
-
-        add_history(uid, "assistant", answer)
-        st.stage = Stage.NORMAL
-
-    except Exception as e:
-        log.exception("OpenAI error: %s", e)
-        await message.answer("Сейчас есть техническая перегрузка 🙈 Пожалуйста, попробуйте ещё раз через минуту.")
-    finally:
-        stop_event.set()
-        try:
-            await typing_task
-        except Exception:
-            pass
+        await typing_task
+    except Exception:
+        pass
 
 
 # =========================
@@ -840,6 +841,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
