@@ -177,28 +177,29 @@ def looks_like_email(s: str) -> bool:
     return bool(re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", (s or "").strip()))
 
 
+NAME_RE = re.compile(
+    r"(?:меня\s+зовут|я)\s+([A-Za-zА-Яа-яЁё\-]+)(?:\s+([A-Za-zА-Яа-яЁё\-]+))?",
+    re.IGNORECASE
+)
+
 def extract_name(text: str) -> Tuple[Optional[str], Optional[str]]:
-    """
-    Умеет доставать имя даже из длинной фразы:
-    "привет! меня зовут Юлия. хочу узнать..." -> Юлия
-    """
-    if not text:
-        return None, None
+    t = (text or "").strip()
 
-    # 1) "меня зовут Юлия", "я Юлия"
-    m = re.search(r"(?:меня\s+зовут|я)\s+([А-ЯЁA-Z][а-яёa-z\-]+)", text, re.IGNORECASE)
+    # 1) ищем "меня зовут ..." или "я ..."
+    m = NAME_RE.search(t)
     if m:
-        return m.group(1), None
+        return m.group(1), m.group(2)
 
-    # 2) если сообщение состоит только из 1–2 слов (имя/имя фамилия)
-    words = re.findall(r"[А-ЯЁA-Z][а-яёa-z\-]+", text)
-    if len(words) == 1:
-        return words[0], None
-    if len(words) == 2 and len(text.strip().split()) <= 3:
-        return words[0], words[1]
+    # 2) если прислали два слова (имя фамилия)
+    m2 = TWO_WORDS_RE.match(t)
+    if m2:
+        return m2.group(1), m2.group(2)
+
+    # 3) если одно слово (имя)
+    if re.fullmatch(r"[A-Za-zА-Яа-яЁё\-]{2,}", t):
+        return t, None
 
     return None, None
-
 
 def guess_gender_by_name(first_name: str) -> Optional[str]:
     if not first_name:
@@ -840,4 +841,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
