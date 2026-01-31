@@ -2150,7 +2150,7 @@ courses:
     updates_free: true
   chat_support:
     available: false
-      note: Чат помощи с экспертом не предусмотрен
+    note: Чат помощи с экспертом не предусмотрен
   media:
     description_mockup:
       type: photo
