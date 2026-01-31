@@ -54,6 +54,8 @@ ADMIN_CHAT_ID_INT = int(ADMIN_CHAT_ID)
 
 bot = Bot(token=TELEGRAM_BOT_TOKEN)
 dp = Dispatcher()
+
+# OpenAI client
 client = OpenAI(api_key=OPENAI_API_KEY)
 
 
@@ -63,12 +65,6 @@ client = OpenAI(api_key=OPENAI_API_KEY)
 KNOWLEDGE_PATH = os.path.join(os.path.dirname(__file__), "knowledge.yaml")
 
 def load_knowledge() -> dict:
-    """
-    Поддерживаем 2 формата:
-    1) dict (mapping) в корне
-    2) list (ваш формат: - id: ..., - id: ...)
-       -> оборачиваем в {"items": [...]}
-    """
     try:
         with open(KNOWLEDGE_PATH, "r", encoding="utf-8") as f:
             data = yaml.safe_load(f)
@@ -78,18 +74,7 @@ def load_knowledge() -> dict:
     except Exception as e:
         log.exception("Ошибка чтения knowledge.yaml: %s", e)
         return {}
-
-    if data is None:
-        return {}
-
-    if isinstance(data, list):
-        return {"items": data}
-
-    if isinstance(data, dict):
-        return data
-
-    log.warning("knowledge.yaml имеет неожиданный тип: %s", type(data))
-    return {}
+    return data or {}
 
 knowledge: Dict[str, Any] = load_knowledge()
 
@@ -111,92 +96,102 @@ def normalize_text(s: str) -> str:
     return s
 
 
-def knowledge_items() -> List[dict]:
-    """
-    Если в корне список — он лежит в knowledge["items"].
-    Если у вас dict-структура — можете тоже хранить items: [...]
-    """
-    items = knowledge.get("items")
-    return items if isinstance(items, list) else []
+# =========================
+# INDEX COURSES + TARIFFS
+# =========================
+@dataclass
+class KBItem:
+    kind: str          # "course" | "tariff"
+    id: str
+    title: str
+    aliases: List[str]
+    payload: dict
 
-
-# Индекс по алиасам/тайтлам для быстрого поиска
-ALIAS_INDEX: Dict[str, List[dict]] = {}
-
+ALIAS_INDEX: Dict[str, List[KBItem]] = {}
+ALL_ITEMS: List[KBItem] = []
 
 def rebuild_index() -> None:
-    global ALIAS_INDEX
+    global ALIAS_INDEX, ALL_ITEMS
     ALIAS_INDEX = {}
-    for it in knowledge_items():
-        if not isinstance(it, dict):
-            continue
-        title = str(it.get("title") or "").strip()
-        aliases = it.get("aliases") or []
-        keys = set()
+    ALL_ITEMS = []
 
-        if title:
+    courses = kget("courses", [])
+    tariffs = kget("tariffs", [])
+
+    def add_items(items: list, kind: str):
+        if not isinstance(items, list):
+            return
+        for it in items:
+            if not isinstance(it, dict):
+                continue
+            _id = str(it.get("id") or "").strip()
+            title = str(it.get("title") or "").strip()
+            aliases = it.get("aliases") if isinstance(it.get("aliases"), list) else []
+            aliases = [a for a in aliases if isinstance(a, str) and a.strip()]
+
+            if not _id or not title:
+                continue
+
+            kb = KBItem(kind=kind, id=_id, title=title, aliases=aliases, payload=it)
+            ALL_ITEMS.append(kb)
+
+            keys = set()
             keys.add(normalize_text(title))
-        if isinstance(aliases, list):
+            keys.add(normalize_text(_id))
             for a in aliases:
-                if isinstance(a, str) and a.strip():
-                    keys.add(normalize_text(a))
+                keys.add(normalize_text(a))
 
-        # доп. ключи по id
-        if it.get("id"):
-            keys.add(normalize_text(str(it["id"])))
+            for k in keys:
+                if not k:
+                    continue
+                ALIAS_INDEX.setdefault(k, []).append(kb)
 
-        for k in keys:
-            ALIAS_INDEX.setdefault(k, []).append(it)
-
+    add_items(courses, "course")
+    add_items(tariffs, "tariff")
 
 rebuild_index()
 
 
-def find_items_by_query(text: str, types: Optional[List[str]] = None) -> List[dict]:
-    """
-    Ищем по:
-    - точному совпадению алиаса/тайтла
-    - вхождению алиаса в запрос (если алиас >= 4 символов)
-    """
+def find_items(text: str, kinds: Optional[List[str]] = None) -> List[KBItem]:
     q = normalize_text(text)
     if not q:
         return []
 
-    results: List[dict] = []
+    results: List[KBItem] = []
 
     # 1) точное совпадение
     if q in ALIAS_INDEX:
         results.extend(ALIAS_INDEX[q])
 
-    # 2) поиск по вхождению алиаса в запрос
+    # 2) вхождение алиаса в запрос (чтобы "курс по нейросетям" находил)
     for k, items in ALIAS_INDEX.items():
         if len(k) >= 4 and k in q:
             results.extend(items)
 
-    # уникализация по id
+    # uniq by (kind,id)
     seen = set()
     uniq = []
     for it in results:
-        _id = it.get("id") or id(it)
-        if _id in seen:
+        key = (it.kind, it.id)
+        if key in seen:
             continue
-        seen.add(_id)
+        seen.add(key)
         uniq.append(it)
 
-    if types:
-        types_norm = {t.lower() for t in types}
-        uniq = [x for x in uniq if str(x.get("type", "")).lower() in types_norm]
+    if kinds:
+        want = {x.lower() for x in kinds}
+        uniq = [x for x in uniq if x.kind.lower() in want]
 
     return uniq
 
 
-def find_one_item(text: str, types: Optional[List[str]] = None) -> Optional[dict]:
-    items = find_items_by_query(text, types=types)
-    return items[0] if items else None
+def find_one(text: str, kinds: Optional[List[str]] = None) -> Optional[KBItem]:
+    arr = find_items(text, kinds=kinds)
+    return arr[0] if arr else None
 
 
 # =========================
-# PROJECT META (если есть в YAML-словаре)
+# PROJECT META
 # =========================
 ASSISTANT_NAME = kget("assistant.name", "Лиза")
 OWNER_NAME = kget("assistant.owner_name", "Юлия")
@@ -207,35 +202,34 @@ PROJECT_NAME = kget("project.name", "INSTART")
 # STATE / MEMORY
 # =========================
 HISTORY_MAX_TURNS = 10
-STATE_TTL_SECONDS = 6 * 60 * 60  # 6 часов
+STATE_TTL_SECONDS = 6 * 60 * 60
 
 class Stage:
     ASK_NAME = "ask_name"
     QUALIFY = "qualify"
     NORMAL = "normal"
     BUY_COLLECT = "buy_collect"
-    WAIT_RECEIPT = "wait_receipt"
-    CONFIRM_RECEIPT = "confirm_receipt"
 
 @dataclass
 class UserProfile:
     first_name: Optional[str] = None
     last_name: Optional[str] = None
-    sex: Optional[str] = None  # "m" / "f" / None
+    sex: Optional[str] = None  # "m"/"f"/None
     phone: Optional[str] = None
     email: Optional[str] = None
 
 @dataclass
 class UserState:
     stage: str = Stage.ASK_NAME
-    chosen_item_id: Optional[str] = None
-    chosen_item_title: Optional[str] = None
-    chosen_item_price: Optional[int] = None
     last_seen: float = field(default_factory=lambda: time.time())
-    history: List[dict] = field(default_factory=list)  # [{"role":"user","content":...}]
+    history: List[dict] = field(default_factory=list)
     profile: UserProfile = field(default_factory=UserProfile)
-    pending_receipt_file_id: Optional[str] = None
-    sent_media_file_ids: set = field(default_factory=set)  # чтобы не слать повторно
+
+    chosen_kind: Optional[str] = None
+    chosen_id: Optional[str] = None
+    chosen_title: Optional[str] = None
+
+    sent_media_file_ids: set = field(default_factory=set)
 
 user_state: Dict[int, UserState] = {}
 
@@ -254,28 +248,21 @@ def add_history(uid: int, role: str, content: str) -> None:
 
 
 # =========================
-# HELPERS: parsing
+# PARSING
 # =========================
 def extract_name(text: str) -> Tuple[Optional[str], Optional[str]]:
-    """
-    Достаёт имя даже из длинной фразы:
-    "привет! меня зовут Юлия. хочу узнать..." -> Юлия
-    """
     if not text:
         return None, None
 
-    # 1) "меня зовут Юлия", "я Юлия"
-    m = re.search(r"(?:меня\s+зовут|я)\s+([А-ЯЁA-Z][а-яёa-z\-]+)", text, re.IGNORECASE)
+    m = re.search(r"(?:меня\s+зовут|я)\s+([А-ЯЁA-Z][а-яёa-z\-]+)(?:\s+([А-ЯЁA-Z][а-яёa-z\-]+))?", text, re.IGNORECASE)
     if m:
-        return m.group(1), None
+        return m.group(1), m.group(2)
 
-    # 2) если сообщение состоит только из 1–2 слов (имя/имя фамилия)
     words = re.findall(r"[А-ЯЁA-Z][а-яёa-z\-]+", text)
     if len(words) == 1 and len(text.strip().split()) <= 3:
         return words[0], None
     if len(words) >= 2 and len(text.strip().split()) <= 4:
         return words[0], words[1]
-
     return None, None
 
 
@@ -283,7 +270,6 @@ def guess_sex_by_name(name: str) -> Optional[str]:
     n = normalize_text(name)
     if not n:
         return None
-    # супер-лёгкая эвристика
     if n.endswith(("а", "я")) and n not in {"илья", "никита"}:
         return "f"
     return "m"
@@ -307,52 +293,106 @@ def looks_like_email(s: str) -> bool:
     return bool(re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", (s or "").strip()))
 
 
+# =========================
+# INTENTS
+# =========================
 BUY_INTENT_RE = re.compile(r"\b(купить|оплат(ить|а)|готов(а)? купить|беру|хочу оформить|оформим)\b", re.IGNORECASE)
 
 def is_guest_request(text: str) -> bool:
     t = normalize_text(text)
-    return any(w in t for w in ["гост", "демо", "пробн", "ключ"])
+    return any(w in t for w in ["гост", "демо", "пробн", "ключ", "гостевой"])
 
 def is_presentation_request(text: str) -> bool:
     t = normalize_text(text)
     return "презентац" in t
 
-def is_price_question(text: str) -> bool:
+def is_tariffs_question(text: str) -> bool:
     t = normalize_text(text)
-    return any(w in t for w in ["цена", "стоим", "сколько"])
+    return any(w in t for w in ["тариф", "тарифи", "пакет", "пакеты", "цена тарифа"])
+
+def is_courses_question(text: str) -> bool:
+    t = normalize_text(text)
+    return any(w in t for w in ["курс", "курсы", "обучение", "направлени", "программа"])
+
+def is_project_question(text: str) -> bool:
+    t = normalize_text(text)
+    return any(w in t for w in ["инстарт", "instart", "проект", "школ", "платформ", "что такое"])
 
 
 # =========================
-# HELPERS: media send (из карточки)
+# MEDIA SENDERS
 # =========================
-async def send_item_media(message: Message, st: UserState, item: dict, caption: Optional[str] = None) -> bool:
-    media = item.get("media")
-    if not isinstance(media, dict):
+def infer_media_type(file_id: str) -> str:
+    # очень грубая эвристика по префиксу telegram file_id
+    if not file_id:
+        return "document"
+    if file_id.startswith("AgACAg"):
+        return "photo"
+    # BAACAg чаще всего document
+    if file_id.startswith("BAACAg") or file_id.startswith("BQACAg") or file_id.startswith("BQA"):
+        return "document"
+    return "document"
+
+
+async def send_file_id(message: Message, st: UserState, file_id: str, caption: str = "") -> bool:
+    if not file_id:
+        return False
+    if file_id in st.sent_media_file_ids:
         return False
 
-    mtype = media.get("type")
-    fid = media.get("file_id")
-    if not fid:
+    mtype = infer_media_type(file_id)
+    cap = caption[:1024] if caption else None
+
+    try:
+        if mtype == "photo":
+            await message.answer_photo(photo=file_id, caption=cap)
+        else:
+            await message.answer_document(document=file_id, caption=cap)
+        st.sent_media_file_ids.add(file_id)
+        return True
+    except Exception as e:
+        log.exception("Не удалось отправить медиа: %s", e)
         return False
 
-    # не слать повторно
-    if fid in st.sent_media_file_ids:
-        return False
 
-    cap = caption or media.get("caption") or media.get("title") or ""
-    cap = cap[:1024] if cap else None
+async def send_course_media(message: Message, st: UserState, course: KBItem) -> bool:
+    payload = course.payload
+    media = payload.get("media")
+    if isinstance(media, dict) and media.get("file_id"):
+        caption = media.get("title") or f"Материалы по курсу «{course.title}»"
+        return await send_file_id(message, st, media["file_id"], caption=caption)
 
-    if mtype == "photo":
-        await message.answer_photo(photo=fid, caption=cap)
-    elif mtype == "video":
-        await message.answer_video(video=fid, caption=cap)
-    elif mtype == "document":
-        await message.answer_document(document=fid, caption=cap)
-    else:
-        return False
+    media_refs = payload.get("media_refs")
+    if isinstance(media_refs, dict):
+        # иногда там лежит key на media-словарь
+        for _, ref in media_refs.items():
+            if isinstance(ref, str):
+                mm = kget(f"media.{ref}")
+                if isinstance(mm, dict) and mm.get("file_id"):
+                    caption = mm.get("title") or f"Материалы по курсу «{course.title}»"
+                    return await send_file_id(message, st, mm["file_id"], caption=caption)
+            if isinstance(ref, dict) and ref.get("file_id"):
+                caption = ref.get("title") or f"Материалы по курсу «{course.title}»"
+                return await send_file_id(message, st, ref["file_id"], caption=caption)
 
-    st.sent_media_file_ids.add(fid)
-    return True
+    return False
+
+
+async def send_tariff_media(message: Message, st: UserState, tariff: KBItem) -> bool:
+    payload = tariff.payload
+    media_refs = payload.get("media_refs")
+    if isinstance(media_refs, dict):
+        mock = media_refs.get("description_mockup")
+        if isinstance(mock, dict) and mock.get("file_id"):
+            caption = mock.get("title") or f"Макет тарифа «{tariff.title}»"
+            return await send_file_id(message, st, mock["file_id"], caption=caption)
+        # иногда может быть просто строка-ключ
+        if isinstance(mock, str):
+            mm = kget(f"media.{mock}")
+            if isinstance(mm, dict) and mm.get("file_id"):
+                caption = mm.get("title") or f"Макет тарифа «{tariff.title}»"
+                return await send_file_id(message, st, mm["file_id"], caption=caption)
+    return False
 
 
 # =========================
@@ -383,7 +423,6 @@ def split_answer(text: str, max_chars: int = 900) -> List[str]:
         return []
     if len(t) <= max_chars:
         return [t]
-
     parts = [p.strip() for p in t.split("\n\n") if p.strip()]
     out: List[str] = []
     buf = ""
@@ -403,48 +442,39 @@ def split_answer(text: str, max_chars: int = 900) -> List[str]:
 
 
 # =========================
-# PROMPT (ваш)
+# PROMPT (ваш, но коротко)
 # =========================
 def build_system_prompt(uid: int) -> str:
-    st = user_state.setdefault(uid, UserState())
-    name = st.profile.first_name or "пожалуйста"
-
-    # Не выдумываем факты — только из knowledge.yaml
-    # Если у вас есть project.disclaimers.income — используем, иначе дефолт:
     disclaim = kget("project.disclaimers.income", "Доход не гарантируется и зависит от усилий.")
-
     return f"""
-Вы — “{ASSISTANT_NAME}”, ассистент куратора {OWNER_NAME} в онлайн-школе {PROJECT_NAME}.
+Вы — “{ASSISTANT_NAME}”, ассистент куратора {OWNER_NAME} в онлайн-школе {PROJECT_NAME} и менеджер по продажам.
 
-ВАЖНО:
+ПРАВИЛА:
 - Общение только на «Вы».
-- Все факты о школе, курсах, тарифах, цене, бонусах, ссылках и медиа — ТОЛЬКО из knowledge.yaml.
-- Если в knowledge.yaml нет нужной информации — не выдумывайте: предложите оставить контакт для уточнения у куратора.
+- Факты о школе/курсах/тарифах/ценах/бонусах/медиа — ТОЛЬКО из knowledge.yaml, не выдумывать.
+- Если в базе нет ответа — скажите, что уточните у куратора, и задайте 1 уточняющий вопрос.
 - Не обещайте гарантированный доход. Формулировка: {disclaim}
 
 СТИЛЬ:
-- Дружелюбно, живо, без канцелярита, без давления.
-- Обычно 1–6 коротких абзацев.
-- В конце задавайте 1 уточняющий вопрос.
-
-ПАМЯТЬ:
-- Используйте историю чата. Не повторяйте одни и те же вопросы.
+- Дружелюбно, живо, без давления.
+- 1–6 коротких абзацев.
+- В конце 1 вопрос.
 """.strip()
 
 
 # =========================
 # COMMANDS
 # =========================
-@dp.message(Command("myid"))
-async def cmd_myid(message: Message):
-    await message.answer(f"Your ID: {message.from_user.id}\nCurrent chat ID: {message.chat.id}")
-
 @dp.message(Command("reload"))
 async def cmd_reload(message: Message):
     global knowledge
     knowledge = load_knowledge()
     rebuild_index()
     await message.answer("knowledge.yaml перечитан ✅")
+
+@dp.message(Command("myid"))
+async def cmd_myid(message: Message):
+    await message.answer(f"Your ID: {message.from_user.id}\nCurrent chat ID: {message.chat.id}")
 
 
 # =========================
@@ -468,70 +498,6 @@ async def start(message: Message):
 
 
 # =========================
-# PHOTO: чек только после оплаты
-# =========================
-@dp.message(F.photo)
-async def on_photo(message: Message):
-    uid = message.from_user.id
-    st = user_state.setdefault(uid, UserState())
-    st.last_seen = time.time()
-
-    if st.stage != Stage.WAIT_RECEIPT:
-        await message.answer(
-            "Вижу фото 🙂\n"
-            "Если это чек — сначала выберите курс/тариф, я оформлю заявку и подскажу дальнейшие шаги ✅"
-        )
-        return
-
-    photo = message.photo[-1]
-    st.pending_receipt_file_id = photo.file_id
-    st.stage = Stage.CONFIRM_RECEIPT
-
-    kb = InlineKeyboardBuilder()
-    kb.button(text="✅ Да, это чек", callback_data="receipt_yes")
-    kb.button(text="❌ Нет, не чек", callback_data="receipt_no")
-    kb.adjust(2)
-
-    await message.answer("Подтвердите, пожалуйста: это чек об оплате? 🙂", reply_markup=kb.as_markup())
-
-
-@dp.callback_query(F.data.in_(["receipt_yes", "receipt_no"]))
-async def receipt_confirm(cb: CallbackQuery):
-    uid = cb.from_user.id
-    st = user_state.setdefault(uid, UserState())
-    st.last_seen = time.time()
-    await cb.answer()
-
-    if cb.data == "receipt_no":
-        st.pending_receipt_file_id = None
-        st.stage = Stage.NORMAL
-        await cb.message.answer("Хорошо 🙂 Тогда продолжим. Подскажите, что именно хотите выбрать — курс или тариф?")
-        return
-
-    fid = st.pending_receipt_file_id
-    st.pending_receipt_file_id = None
-    st.stage = Stage.NORMAL
-
-    await cb.message.answer("Принято ✅ Я передам Юлии на подтверждение оплаты.")
-
-    lead = (
-        "✅ ПРИШЁЛ ЧЕК ОБ ОПЛАТЕ\n"
-        f"Имя: {st.profile.first_name or '—'} {st.profile.last_name or ''}\n"
-        f"Выбор: {st.chosen_item_title or 'не указан'} — {st.chosen_item_price or '—'} ₽\n"
-        f"Телефон: {st.profile.phone or 'не указан'}\n"
-        f"Email: {st.profile.email or 'не указан'}\n"
-        f"User ID: {uid}"
-    )
-    await send_admin(lead)
-
-    if fid:
-        try:
-            await bot.send_photo(ADMIN_CHAT_ID_INT, photo=fid, caption="Чек от клиента ✅")
-        except Exception as e:
-            log.exception("Failed to send receipt photo to admin: %s", e)
-
-
-# =========================
 # MAIN TEXT HANDLER
 # =========================
 @dp.message(F.text)
@@ -545,7 +511,7 @@ async def chat(message: Message):
     if not text:
         return
 
-    # 1) стадия "спросили имя"
+    # 1) имя
     if st.stage == Stage.ASK_NAME:
         first, last = extract_name(text)
         if first:
@@ -562,130 +528,197 @@ async def chat(message: Message):
                 "Можно просто цифрой."
             )
         else:
-            await message.answer("Как я могу к Вам обращаться? 🙂")
+            await message.answer("Подскажите, пожалуйста, как я могу к Вам обращаться? 🙂")
         return
 
-    # 2) Гостевой доступ: ищем либо блок guest_access в dict, либо карточку в items
-    if is_guest_request(text):
-        # вариант А: структурный блок
-        guest_key = kget("guest_access.key")
-        guest_site = kget("guest_access.site") or kget("guest_access.site_url") or kget("guest_access.url")
-
-        # вариант Б: карточка
-        guest_item = find_one_item(text, types=["guest_access", "info", "guest"])
-
-        if guest_key or guest_item:
-            lines = ["Конечно 🙂"]
-
-            if guest_site:
-                lines.append(f"\nСайт для регистрации: {guest_site}")
-
-            if guest_key:
-                lines.append(f"\n🔑 Гостевой ключ: `{guest_key}`")
-
-            if guest_item and isinstance(guest_item.get("description"), str):
-                lines.append("\n" + guest_item["description"].strip())
-
-            await message.answer("\n".join(lines), parse_mode="Markdown")
-
-            # если у карточки есть медиа — отправим
-            if guest_item:
-                await send_item_media(message, st, guest_item, caption="Отправляю материалы по гостевому доступу ✅")
-
-        else:
-            await message.answer(
-                "Я не вижу данных по гостевому доступу в базе 🙈\n"
-                "Могу уточнить у Юлии и вернуться к Вам. Подскажите, пожалуйста, как удобнее — телефон или email?"
-            )
-        return
-
-    # 3) Презентация проекта: ищем карточку по алиасу/слову "презентация"
-    if is_presentation_request(text):
-        pres_item = find_one_item(text, types=["media", "presentation", "info", "project_media"])
-        if not pres_item:
-            # если типы не совпали — попробуем просто любой item, где есть media и "презентация" в title/aliases
-            candidates = find_items_by_query(text)
-            pres_item = next((x for x in candidates if isinstance(x.get("media"), dict)), None)
-
-        if pres_item:
-            await message.answer("Сейчас отправлю презентацию проекта 📎")
-            ok = await send_item_media(message, st, pres_item, caption="Презентация проекта INSTART 📎")
-            if not ok:
-                await message.answer("Похоже, я уже отправляла этот файл ранее 🙂 Если нужно — напомню кратко, что в презентации.")
-        else:
-            await message.answer(
-                "Я не нашла презентацию в базе 🙈\n"
-                "Скажите, пожалуйста, что именно хотите узнать про INSTART: подработка, профессия или партнёрство?"
-            )
-        return
-
-    # 4) Если человек спрашивает про конкретный курс/тариф — отвечаем без OpenAI
-    found = find_one_item(text, types=["course", "tariff"])
-    if found:
-        title = found.get("title", "Без названия")
-        typ = str(found.get("type", "")).lower()
-        price = found.get("price") or {}
-
-        # поддержка разных форматов цены
-        price_with = None
-        price_without = None
-        if isinstance(price, dict):
-            price_with = price.get("with_chat_rub") or price.get("with_chat")
-            price_without = price.get("without_chat_rub") or price.get("without_chat")
-
-        chat_available = found.get("chat_available")
-        short_desc = found.get("short_description") or found.get("description")
+    # 2) проект INSTART
+    if is_project_question(text):
+        desc = kget("project.description", "")
+        mission = kget("project.mission", "")
+        founded = kget("project.founded.purpose", "")
+        benefits = kget("instart_school_benefits", {})
 
         lines = []
-        if typ == "tariff":
-            lines.append(f"**Тариф:** {title}")
-        else:
-            lines.append(f"**Курс:** {title}")
+        if desc:
+            lines.append(desc.strip())
+        if mission:
+            lines.append(f"**Миссия:** {mission}".strip())
+        if founded:
+            lines.append(f"**Зачем создан проект:** {founded}".strip())
 
-        if price_with or price_without:
-            if price_with and price_without and price_with != price_without:
-                lines.append(f"Цена: с чатом — {price_with} ₽, без чата — {price_without} ₽.")
-            elif price_with:
-                lines.append(f"Цена: {price_with} ₽.")
-            elif price_without:
-                lines.append(f"Цена: {price_without} ₽.")
+        # коротко 3–4 преимущества, если есть
+        if isinstance(benefits, dict):
+            bullets = []
+            for key in ["quality", "affordable_cost", "freedom", "ease", "convenience", "right_to_choose"]:
+                v = benefits.get(key)
+                if isinstance(v, dict):
+                    title = v.get("title")
+                    short = v.get("short") or v.get("text")
+                    if title and short:
+                        bullets.append(f"• **{title}:** {str(short).strip()}")
+                elif isinstance(v, str):
+                    bullets.append(f"• {v.strip()}")
+                if len(bullets) >= 4:
+                    break
+            if bullets:
+                lines.append("\n".join(bullets))
 
-        if isinstance(chat_available, bool):
-            lines.append("Чат: " + ("есть ✅" if chat_available else "нет"))
+        if not lines:
+            await message.answer(
+                "Я вижу, что проект INSTART есть в базе, но описания сейчас недостаточно 🙈\n"
+                "Подскажите, пожалуйста: Вам интереснее подработка, новая профессия или партнёрство?"
+            )
+            return
 
-        if isinstance(short_desc, str) and short_desc.strip():
-            lines.append("\n" + short_desc.strip())
-
-        await message.answer("\n".join(lines), parse_mode="Markdown")
-
-        # отправим макет/медиа если есть
-        sent = await send_item_media(message, st, found, caption=f"Отправляю материалы по «{title}» 📎")
-        if not sent and isinstance(found.get("media"), dict):
-            # если не отправили, значит уже отправляли — просто скажем
-            await message.answer("Материалы по этому варианту я уже отправляла ранее 🙂")
-
-        await message.answer("Подскажите, пожалуйста: Вы рассматриваете этот вариант для себя или хотите сравнить с ещё 1–2 вариантами?")
+        await message.answer("\n\n".join(lines), parse_mode="Markdown")
+        await message.answer("Подскажите, пожалуйста, какое направление Вам интереснее всего (например: нейросети, Reels, дизайн, маркетплейсы)?")
         st.stage = Stage.NORMAL
         return
 
-    # 5) Если вопрос о цене вообще — предложим уточнить что именно
-    if is_price_question(text):
-        await message.answer(
-            "Подскажите, пожалуйста, цену чего именно хотите узнать — конкретного курса или тарифа?\n"
-            "Напишите название (или как Вы его называете) — я найду по базе 🙂"
-        )
+    # 3) гостевой доступ
+    if is_guest_request(text):
+        guest_site = kget("guest_access.guest_key.site", "")
+        guest_key = kget("guest_access.guest_key.key", "")
+        layout_id = kget("guest_access.registration_layout_file_id", "")
+        pres_id = kget("guest_access.promo_materials.presentation_file_id", "")
+
+        lines = ["Конечно 🙂"]
+        if guest_site:
+            lines.append(f"\nСайт для регистрации: {guest_site}")
+        if guest_key:
+            lines.append(f"\n🔑 Гостевой ключ: `{guest_key}`")
+
+        await message.answer("\n".join(lines), parse_mode="Markdown")
+
+        if layout_id:
+            await message.answer("Отправляю макет для регистрации ✅")
+            await send_file_id(message, st, layout_id, caption="Макет для регистрации ✅")
+
+        if pres_id:
+            await message.answer("И прикрепляю презентацию проекта 📎")
+            await send_file_id(message, st, pres_id, caption="Презентация проекта INSTART 📎")
+
+        await message.answer("Подскажите, пожалуйста, Вы хотите гостевой доступ, чтобы выбрать направление, или уже есть конкретный интерес?")
         return
 
-    # 6) Готов купить → сбор данных (только когда выбрали конкретный курс/тариф)
+    # 4) презентация
+    if is_presentation_request(text):
+        pres_id = kget("guest_access.promo_materials.presentation_file_id", "")
+        if pres_id:
+            await message.answer("Сейчас отправлю презентацию проекта 📎")
+            ok = await send_file_id(message, st, pres_id, caption="Презентация проекта INSTART 📎")
+            if not ok:
+                await message.answer("Похоже, я уже отправляла презентацию ранее 🙂 Хотите, я кратко перескажу, что в ней?")
+        else:
+            await message.answer(
+                "Я не вижу file_id презентации в базе 🙈\n"
+                "Подскажите, пожалуйста, что именно хотите узнать про INSTART: подработка, профессия или партнёрство?"
+            )
+        return
+
+    # 5) тарифы списком
+    if is_tariffs_question(text):
+        tariffs = kget("tariffs", [])
+        if not isinstance(tariffs, list) or not tariffs:
+            await message.answer("Сейчас я не вижу тарифы в базе 🙈 Подскажите, пожалуйста, что Вас интересует: курс или тариф?")
+            return
+
+        lines = ["Вот актуальные тарифы из базы 🙂\n"]
+        for t in tariffs[:10]:
+            title = t.get("title")
+            price = t.get("price_rub")
+            if title and price is not None:
+                lines.append(f"• **{title}** — {price} ₽")
+        await message.answer("\n".join(lines), parse_mode="Markdown")
+        await message.answer("Подскажите, пожалуйста, какая цель у Вас сейчас: подработка или новая профессия?")
+        return
+
+    # 6) нашли конкретный курс/тариф по алиасам
+    found = find_one(text, kinds=["course", "tariff"])
+    if found:
+        p = found.payload
+        kind_ru = "Курс" if found.kind == "course" else "Тариф"
+
+        lines = [f"**{kind_ru}:** {found.title}"]
+
+        # цена (поддерживаем разные поля)
+        if found.kind == "course":
+            price = p.get("price")
+            if isinstance(price, dict):
+                with_chat = price.get("with_chat_rub")
+                without_chat = price.get("without_chat_rub")
+                if with_chat and without_chat and with_chat != without_chat:
+                    lines.append(f"Цена: с чатом — {with_chat} ₽, без чата — {without_chat} ₽.")
+                elif with_chat:
+                    lines.append(f"Цена: {with_chat} ₽.")
+                elif without_chat:
+                    lines.append(f"Цена: {without_chat} ₽.")
+            chat_av = p.get("chat_available")
+            if isinstance(chat_av, bool):
+                lines.append("Чат: " + ("есть ✅" if chat_av else "нет"))
+            sd = p.get("short_description")
+            if isinstance(sd, str) and sd.strip():
+                lines.append("\n" + sd.strip())
+
+        else:
+            price_rub = p.get("price_rub")
+            if price_rub is not None:
+                lines.append(f"Цена: {price_rub} ₽.")
+            short = p.get("short_about")
+            if isinstance(short, str) and short.strip():
+                lines.append("\n" + short.strip())
+
+        await message.answer("\n".join(lines), parse_mode="Markdown")
+
+        # медиа/макет
+        if found.kind == "course":
+            sent = await send_course_media(message, st, found)
+        else:
+            sent = await send_tariff_media(message, st, found)
+
+        if sent:
+            await message.answer("Прикрепила материалы, чтобы Вам было удобнее посмотреть ✅")
+        else:
+            # если медиа есть, но уже слали — промолчим; если вообще нет — тоже ок
+            pass
+
+        st.chosen_kind = found.kind
+        st.chosen_id = found.id
+        st.chosen_title = found.title
+
+        await message.answer("Подскажите, пожалуйста, Вы рассматриваете этот вариант для себя или хотите сравнить ещё с 1–2 вариантами?")
+        return
+
+    # 7) если спрашивают "нейросети", а точного курса не нашли — предложим варианты по ключевому слову
+    q = normalize_text(text)
+    if "нейросет" in q or "ai" in q:
+        candidates = [x for x in ALL_ITEMS if x.kind == "course" and ("нейросет" in normalize_text(x.title) or any("нейросет" in normalize_text(a) for a in x.aliases))]
+        if candidates:
+            lines = ["Я нашла в базе курсы по нейросетям 🙂"]
+            for c in candidates[:5]:
+                lines.append(f"• **{c.title}**")
+            await message.answer("\n".join(lines), parse_mode="Markdown")
+            await message.answer("Подскажите, пожалуйста, какой формат Вам ближе: нейросети для фото/видео или, например, под задачи контента?")
+            return
+
+    # 8) покупка — ТОЛЬКО если выбран конкретный курс/тариф
     if BUY_INTENT_RE.search(text):
+        if not st.chosen_title:
+            await message.answer(
+                "Хорошо 🙂 Сначала уточним выбор.\n"
+                "Напишите, пожалуйста, какой курс или тариф Вы хотите купить (как Вы его называете) — я найду по базе."
+            )
+            return
+
         st.stage = Stage.BUY_COLLECT
         await message.answer(
-            "Хорошо 🙂 Чтобы оформить заявку, напишите одним сообщением:\n"
+            f"Отлично 🙂 Подтверждаю: **{st.chosen_title}**.\n\n"
+            "Чтобы оформить заявку, напишите одним сообщением:\n"
             "1) Фамилия Имя\n"
             "2) Телефон\n"
             "3) E-mail\n"
-            "4) Какой курс/тариф выбрали (название)\n\n"
-            "Если ещё не выбрали — скажите цель, и я предложу 1–3 варианта."
+            "4) Выбранный курс/тариф (на всякий случай ещё раз)\n",
+            parse_mode="Markdown"
         )
         return
 
@@ -704,18 +737,12 @@ async def chat(message: Message):
         if email:
             st.profile.email = email.strip()
 
-        chosen = find_one_item(text, types=["course", "tariff"])
+        # если человек вдруг здесь написал название — обновим выбранное
+        chosen = find_one(text, kinds=["course", "tariff"])
         if chosen:
-            st.chosen_item_id = chosen.get("id")
-            st.chosen_item_title = chosen.get("title")
-            # цена: берём "with_chat_rub" если есть, иначе "without_chat_rub"
-            price = chosen.get("price") if isinstance(chosen.get("price"), dict) else {}
-            if isinstance(price, dict):
-                st.chosen_item_price = price.get("with_chat_rub") or price.get("without_chat_rub")
-
-        if not st.chosen_item_title:
-            await message.answer("Пожалуйста, уточните выбранный курс/тариф (название) — я зафиксирую в заявке 🙂")
-            return
+            st.chosen_kind = chosen.kind
+            st.chosen_id = chosen.id
+            st.chosen_title = chosen.title
 
         missing = []
         if not st.profile.last_name or not st.profile.first_name:
@@ -729,7 +756,6 @@ async def chat(message: Message):
             await message.answer("Мне не хватает: " + ", ".join(missing) + " 🙂 Напишите, пожалуйста.")
             return
 
-        # Заявка админу
         now_str = time.strftime("%Y-%m-%d %H:%M", time.localtime())
         lead_text = (
             "🟩 ЗАЯВКА НА ПОКУПКУ (INSTART)\n"
@@ -738,9 +764,9 @@ async def chat(message: Message):
             f"Фамилия Имя: {st.profile.last_name} {st.profile.first_name}\n"
             f"Телефон: {st.profile.phone}\n"
             f"Email: {st.profile.email}\n"
-            f"Курс/Тариф: {st.chosen_item_title} — {st.chosen_item_price or '—'} ₽\n"
+            f"Курс/Тариф: {st.chosen_title}\n"
             f"Источник: Telegram\n"
-            f"Краткий запрос: {text[:200]}\n"
+            f"Краткий запрос/цель: {text[:200]}\n"
             f"Дата/время: {now_str}\n"
             f"User ID: {uid}"
         )
@@ -750,12 +776,11 @@ async def chat(message: Message):
             "Спасибо! 😊 Я передала заявку.\n"
             "Куратор Юлия свяжется с Вами и подскажет дальнейшие шаги."
         )
-
         st.stage = Stage.NORMAL
         return
 
     # =========================
-    # OpenAI fallback (когда не нашли ничего в базе)
+    # OpenAI fallback (только если в базе не нашли)
     # =========================
     add_history(uid, "user", text)
 
@@ -767,13 +792,15 @@ async def chat(message: Message):
         resp = client.chat.completions.create(
             model=MODEL,
             messages=messages,
-            temperature=0.5,
-            max_tokens=240,
+            temperature=0.4,
+            max_tokens=220,
         )
         return (resp.choices[0].message.content or "").strip()
 
     try:
         sys = build_system_prompt(uid)
+
+        # IMPORTANT: не даём модели выдумывать — просим уточнить, если нет данных
         msgs = [{"role": "system", "content": sys}]
         msgs.extend(st.history[-HISTORY_MAX_TURNS * 2 :])
         msgs.append({"role": "user", "content": text})
@@ -781,12 +808,12 @@ async def chat(message: Message):
         answer = await asyncio.to_thread(call_openai_sync, msgs)
 
         elapsed = time.time() - start_ts
-        if elapsed < 2.0:
-            await asyncio.sleep(2.0 - elapsed)
+        if elapsed < 1.5:
+            await asyncio.sleep(1.5 - elapsed)
 
         parts = split_answer(answer, max_chars=900)
         if not parts:
-            parts = ["Я задумалась 😅 Напишите, пожалуйста, чуть иначе — и я помогу."]
+            parts = ["Подскажите, пожалуйста, чуть подробнее, что именно Вам важно — я помогу 🙂"]
 
         for p in parts:
             await message.answer(p)
@@ -836,4 +863,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
