@@ -80,7 +80,7 @@ tariffs:
   media_refs:
     description_mockup:
       type: photo
-      file_id: "AgACAgIAAxkBAANoaWJ_Uz6DCaS1pkJ1RPqYyuGIP9wAAtoQaxtQFRFLAAFN7XQ1FeyPAQADAgADdwADOAQ"
+      file_id: AgACAgIAAxkBAANoaWJ_Uz6DCaS1pkJ1RPqYyuGIP9wAAtoQaxtQFRFLAAFN7XQ1FeyPAQADAgADdwADOAQ
       title: "Описание и наполнение тарифа «Базовые курсы»"
 - id: tariff_2
   type: tariff
@@ -127,7 +127,7 @@ tariffs:
   media_refs:
     description_mockup:
       type: photo
-      file_id: "AgACAgIAAxkBAANqaWJ_nfvCV4_r7wo_iXZWeaBDSfsAAtwQaxtQFRFLuZTTW2WL-d4BAAMCAAN3AAM4BA"
+      file_id: AgACAgIAAxkBAANqaWJ_nfvCV4_r7wo_iXZWeaBDSfsAAtwQaxtQFRFLuZTTW2WL-d4BAAMCAAN3AAM4BA
       title: "Описание и наполнение тарифа «Новые направления»"
 - id: tariff_3
   type: tariff
@@ -186,7 +186,7 @@ tariffs:
   media_refs:
     description_mockup:
       type: photo
-      file_id: "AgACAgIAAxkBAANsaWKAF80HLcoG8ea07uI8iopWSI4AAuEQaxtQFRFL4o_3WrApY04BAAMCAAN3AAM4BA"
+      file_id: AgACAgIAAxkBAANsaWKAF80HLcoG8ea07uI8iopWSI4AAuEQaxtQFRFL4o_3WrApY04BAAMCAAN3AAM4BA
       title: "Описание и наполнение тарифа «Всё включено»"
 - id: tariff_4
   title: "Маркетплейсы"
@@ -234,7 +234,7 @@ tariffs:
   media_refs:
     description_mockup:
       type: photo
-      file_id: "AgACAgIAAxkBAANuaWKAZ6eoxH9iYyIzFsf_3vANuY8AAukQaxtQFRFLGHmeBZD57sIBAAMCAAN3AAM4BA"
+      file_id: AgACAgIAAxkBAANuaWKAZ6eoxH9iYyIzFsf_3vANuY8AAukQaxtQFRFLGHmeBZD57sIBAAMCAAN3AAM4BA
       title: "Описание и наполнение тарифа «Маркетплейсы»"
 - id: tariff_5
   type: tariff
@@ -299,7 +299,7 @@ tariffs:
   media_refs:
     description_mockup:
       type: photo
-      file_id: "AgACAgIAAxkBAANwaWKAtT3B18lpE5S4xv04Yw9YQkUAAu8QaxtQFRFLZUJ1_03v1QMBAAMCAAN3AAM4BA"
+      file_id: AgACAgIAAxkBAANwaWKAtT3B18lpE5S4xv04Yw9YQkUAAu8QaxtQFRFLZUJ1_03v1QMBAAMCAAN3AAM4BA
       title: "Описание и наполнение тарифа «Премиум»"
 - id: tariff_6
   type: tariff
@@ -381,7 +381,7 @@ tariffs:
   media_refs:
     description_mockup:
       type: photo
-      file_id: "AgACAgIAAxkBAANyaWKBCsKjuh6-ezNaa8BUeZn40SkAAvQQaxtQFRFLp6mYnsOeDX4BAAMCAAN3AAM4BA"
+      file_id: AgACAgIAAxkBAANyaWKBCsKjuh6-ezNaa8BUeZn40SkAAvQQaxtQFRFLp6mYnsOeDX4BAAMCAAN3AAM4BA
       title: "Описание и наполнение тарифа «VIP»"
 - id: tariff_neurostart
   type: tariff
@@ -441,7 +441,7 @@ tariffs:
   media_refs:
     description_mockup:
       type: photo
-      file_id: "AgACAgIAAxkBAAN0aWKBdYcLn_Eq3KqbW1aysOwEjyEAAvgQaxtQFRFLjWCSAzV8yA0BAAMCAAN3AAM4BA"
+      file_id: AgACAgIAAxkBAAN0aWKBdYcLn_Eq3KqbW1aysOwEjyEAAvgQaxtQFRFLjWCSAzV8yA0BAAMCAAN3AAM4BA
       title: "Описание и наполнение тарифа «Нейростарт»"
 courses_overview:
   intro_text: |
@@ -462,7 +462,7 @@ courses_overview:
   media_refs:
     full_courses_list:
       type: photo
-      file_id: "AgACAgIAAxkBAAN2aWKB8PA78isdBkAznTDE-UCIIrUAAv0QaxtQFRFLHnuWd9v3-ocBAAMCAAN3AAM4BA"
+      file_id: AgACAgIAAxkBAAN2aWKB8PA78isdBkAznTDE-UCIIrUAAv0QaxtQFRFLHnuWd9v3-ocBAAMCAAN3AAM4BA
       title: "Полный перечень курсов INSTART с ценами и доступом к чатам помощи"
 courses:
 - id: auto_instagram
@@ -510,7 +510,7 @@ courses:
   media_refs:
     description_mockup:
       type: photo
-      file_id: "AgACAgIAAxkBAAOiaWKYFhb-3hZQvO9SVlEmfiSkz14AAi8MaxtQFRlLsdo3zjoPOIABAAMCAAN3AAM4BA"
+      file_id: AgACAgIAAxkBAAOiaWKYFhb-3hZQvO9SVlEmfiSkz14AAi8MaxtQFRlLsdo3zjoPOIABAAMCAAN3AAM4BA
       title: "Описание и наполнение курса «Автопродвижение в Instagram»"
 - id: simple_tasks
   type: course
@@ -570,7 +570,7 @@ courses:
   media_refs:
     description_mockup:
       type: photo
-      file_id: "AgACAgIAAxkBAAN4aWKPiugWqaYsfZwAAUzAXwbKU9N7AAKkC2sbUBUZS3ZQXGibwUo6AQADAgADdwADOAQ"
+      file_id: AgACAgIAAxkBAAN4aWKPiugWqaYsfZwAAUzAXwbKU9N7AAKkC2sbUBUZS3ZQXGibwUo6AQADAgADdwADOAQ
       title: "Описание и наполнение курса «Выполнение простых заданий»"
 - id: creative_video_editing
   type: course
@@ -650,11 +650,11 @@ courses:
   media_refs:
     course_description:
       type: photo
-      file_id: "AAgACAgIAAxkBAAOuaWKdx8Ze6jOLbvouXoBIsNyXxHEAAmoMaxtQFRlLC7zbIq4RasoBAAMCAAN3AAM4BA"
+      file_id: AAgACAgIAAxkBAAOuaWKdx8Ze6jOLbvouXoBIsNyXxHEAAmoMaxtQFRlLC7zbIq4RasoBAAMCAAN3AAM4BA
       title: "Описание и наполнение курса «Креативный монтаж видео»"
     course_program:
       type: photo
-      file_id: "AgACAgIAAxkBAAO0aWOEQsHojCBzV4hOzZuj1sRpeqMAAl4RaxtQFRlLnuEHYWk2SMkBAAMCAAN3AAM4BA"
+      file_id: AgACAgIAAxkBAAO0aWOEQsHojCBzV4hOzZuj1sRpeqMAAl4RaxtQFRlLnuEHYWk2SMkBAAMCAAN3AAM4BA
       title: "Содержание курса «Креативный монтаж видео»"
 - id: ad_marking
   type: course
@@ -728,7 +728,7 @@ courses:
   media_refs:
     description_mockup:
       type: photo
-      file_id: "AgACAgIAAxkBAAOaaWKXAeckak5j_ZoG_vm8wR7BZd8AAh8MaxtQFRlL-qFg8C_WxVsBAAMCAAN3AAM4BA"
+      file_id: AgACAgIAAxkBAAOaaWKXAeckak5j_ZoG_vm8wR7BZd8AAh8MaxtQFRlL-qFg8C_WxVsBAAMCAAN3AAM4BA
       title: "Описание и наполнение курса «Маркировка интернет-рекламы»"
 - id: neural_networks
   type: course
@@ -795,7 +795,7 @@ courses:
   media_refs:
     description_mockup:
       type: photo
-      file_id: "AgACAgIAAxkBAAOEaWKSaDD2knXV2mEXI-8kOrDFGqcAAtYLaxtQFRlLzreHbu5ipZwBAAMCAAN3AAM4BA"
+      file_id: AgACAgIAAxkBAAOEaWKSaDD2knXV2mEXI-8kOrDFGqcAAtYLaxtQFRlLzreHbu5ipZwBAAMCAAN3AAM4BA
       title: "Описание и наполнение курса «Нейросети»"
 - id: neural_photo_video
   type: course
@@ -898,7 +898,7 @@ courses:
   media_refs:
     description_mockup:
       type: photo
-      file_id: "AgACAgIAAxkBAAOGaWKSuFJuLWMk6_OCvgm_mHEH8y8AAtgLaxtQFRlL7GGb7sNk8O8BAAMCAAN3AAM4BA"
+      file_id: AgACAgIAAxkBAAOGaWKSuFJuLWMk6_OCvgm_mHEH8y8AAtgLaxtQFRlL7GGb7sNk8O8BAAMCAAN3AAM4BA
       title: "Описание и наполнение курса «Нейросети для фото и видео»"
 - id: figma_basics
   type: course
@@ -1020,7 +1020,7 @@ courses:
   media_refs:
     description_mockup:
       type: photo
-      file_id: "AgACAgIAAxkBAAOyaWKezPlD5yK9UMpFXZd7n74mIIwAAnQMaxtQFRlLTVuyl7GvizwBAAMCAAN3AAM4BA"
+      file_id: AgACAgIAAxkBAAOyaWKezPlD5yK9UMpFXZd7n74mIIwAAnQMaxtQFRlLTVuyl7GvizwBAAMCAAN3AAM4BA
       title: "Описание и наполнение курса «Основы дизайна в Figma»"
 - id: course_client_search
   type: course
@@ -1064,7 +1064,7 @@ courses:
   media_refs:
     description_mockup:
       type: photo
-      file_id: "AgACAgIAAxkBAAOWaWKWXHZs6l5bpqjjrR-yEe7jgrsAAgUMaxtQFRlL-lAlymnyfK8BAAMCAAN3AAM4BA"
+      file_id: AgACAgIAAxkBAAOWaWKWXHZs6l5bpqjjrR-yEe7jgrsAAgUMaxtQFRlL-lAlymnyfK8BAAMCAAN3AAM4BA
       title: "Описание и наполнение мини-курса «Поиск клиентов»"
 - id: promo_codes_income
   type: course
@@ -1097,7 +1097,7 @@ courses:
     available: true
   media:
     type: photo
-    file_id: "AgACAgIAAxkBAAOwaWKeXtODXbLUIcC75UtBzb-gNH8AAm0MaxtQFRlLhR50IOEbIoEBAAMCAAN3AAM4BA"
+    file_id: AgACAgIAAxkBAAOwaWKeXtODXbLUIcC75UtBzb-gNH8AAm0MaxtQFRlLhR50IOEbIoEBAAMCAAN3AAM4BA
     title: "Макет курса «Получение выплат за промокоды»"
   short_description: >
     Курс о партнёрских программах, промокодах и купонах.
@@ -1179,11 +1179,11 @@ courses:
   media:
     description_mockup:
       type: photo
-      file_id: "AgACAgIAAxkBAAN-aWKROrAZNE1IVDvqZ46jW4rv1loAAswLaxtQFRlLbVNNjpOOwb0BAAMCAAN3AAM4BA"
+      file_id: AgACAgIAAxkBAAN-aWKROrAZNE1IVDvqZ46jW4rv1loAAswLaxtQFRlLbVNNjpOOwb0BAAMCAAN3AAM4BA
       title: "Описание и наполнение курса «Продающий Taplink»"
     program_mockup:
       type: photo
-      file_id: "AgACAgIAAxkBAAPCaWPpB6k0M6nvDMl4f5VmZRLANsIAAqILaxsdFSFLs5fgXhzVI9MBAAMCAAN3AAM4BA"
+      file_id: AgACAgIAAxkBAAPCaWPpB6k0M6nvDMl4f5VmZRLANsIAAqILaxsdFSFLs5fgXhzVI9MBAAMCAAN3AAM4BA
       title: "Программа курса «Продающий Taplink»"
     short_description: >
       Курс по созданию продающих сайтов-визиток и интернет-магазинов в Taplink.
@@ -1248,7 +1248,7 @@ courses:
   media:
     description_mockup:
       type: photo
-      file_id: "AgACAgIAAxkBAAN8aWKQ8R89ao3P54pWR2Y8FDPkcIkAAskLaxtQFRlLMud1p4AoAuUBAAMCAAN3AAM4BA"
+      file_id: AgACAgIAAxkBAAN8aWKQ8R89ao3P54pWR2Y8FDPkcIkAAskLaxtQFRlLMud1p4AoAuUBAAMCAAN3AAM4BA
       title: "Описание и наполнение курса «Продающие тексты»"
     short_description: >
       Курс по созданию продающих текстов для социальных сетей, блогов и бизнеса.
@@ -1314,7 +1314,7 @@ courses:
   media:
     description_mockup:
       type: photo
-      file_id: "AgACAgIAAxkBAAOYaWKWqyaJVpTbir-xJQipq4xq21wAAhsMaxtQFRlLj80320k8_lkBAAMCAAN3AAM4BA"
+      file_id: AgACAgIAAxkBAAOYaWKWqyaJVpTbir-xJQipq4xq21wAAhsMaxtQFRlLj80320k8_lkBAAMCAAN3AAM4BA
       title: "Описание и наполнение курса «Продающий Telegram»"
     short_description: >
       Мини-курс по упаковке и продвижению Telegram-канала,
@@ -1507,7 +1507,7 @@ courses:
   media:
     description_mockup:
       type: photo
-      file_id: "AgACAgIAAxkBAAOCaWKSE-G914bc3elAJUAii-GodiQAAtILaxtQFRlLAX_0XwnfNPUBAAMCAAN3AAM4BA"
+      file_id: AgACAgIAAxkBAAOCaWKSE-G914bc3elAJUAii-GodiQAAtILaxtQFRlLAX_0XwnfNPUBAAMCAAN3AAM4BA
       title: "Описание и наполнение курса «Сам себе монтажёр»"
     short_description: >
       Практический курс по съёмке и монтажу видео и stories.
@@ -1623,11 +1623,11 @@ courses:
   media:
     description_mockup:
       type: photo
-      file_id: "AgACAgIAAxkBAAOqaWKbrg_ybYgaVs3XI3RpPOVtWQMAAl8MaxtQFRlLGzJOpjQI1gUBAAMCAAN3AAM4BA"
+      file_id: AgACAgIAAxkBAAOqaWKbrg_ybYgaVs3XI3RpPOVtWQMAAl8MaxtQFRlLGzJOpjQI1gUBAAMCAAN3AAM4BA
       title: "Описание и наполнение курса «Специалист по продвижению во ВКонтакте»"
     program_mockup:
       type: photo
-      file_id: "AgACAgIAAxkBAAO4aWPVLhQUBAonQ9BFYJ5BIS31yuEAAoATaxsdFRlL5c273oczu_EBAAMCAAN3AAM4BA"
+      file_id: AgACAgIAAxkBAAO4aWPVLhQUBAonQ9BFYJ5BIS31yuEAAoATaxsdFRlL5c273oczu_EBAAMCAAN3AAM4BA
       title: "Программа курса «Специалист по продвижению во ВКонтакте»"
     short_description: >
       Практический курс по продвижению бизнеса, экспертов и услуг во ВКонтакте
@@ -1694,7 +1694,7 @@ courses:
   media:
     description_mockup:
       type: photo
-      file_id: "AgACAgIAAxkBAAOSaWKVuQJCwPTmc7pLHRiE8AQEdaYAAvMLaxtQFRlLfhXUFEbOM_sBAAMCAANtAAM4BA"
+      file_id: AgACAgIAAxkBAAOSaWKVuQJCwPTmc7pLHRiE8AQEdaYAAvMLaxtQFRlLfhXUFEbOM_sBAAMCAANtAAM4BA
       title: "Описание и наполнение курса «Стикеры для соцсетей»"
     short_description: >
       Практический курс по созданию анимированных стикеров, emoji и стикерпаков
@@ -1770,7 +1770,7 @@ courses:
   media:
     description_mockup:
       type: photo
-      file_id: "AgACAgIAAxkBAAOkaWKYYzOh7P6PnCE_QX7zkg2SGWYAAjIMaxtQFRlLvQUElR6ZacwBAAMCAAN3AAM4BA"
+      file_id: AgACAgIAAxkBAAOkaWKYYzOh7P6PnCE_QX7zkg2SGWYAAjIMaxtQFRlLvQUElR6ZacwBAAMCAAN3AAM4BA
       title: "Описание и наполнение курса «SMM-менеджер»"
     short_description: >
       Базовый курс для освоения профессии SMM-менеджера с нуля.
@@ -3158,10 +3158,10 @@ courses:
   media:
     description_mockup:
       type: photo
-      file_id: "AgACAgIAAxkBAAOmaWKaq5VfdTPBKcWVXulUCBG0KcwAAk0MaxtQFRlLDp38pk4QoAYBAAMCAAN3AAM4BA"
+      file_id: AgACAgIAAxkBAAOmaWKaq5VfdTPBKcWVXulUCBG0KcwAAk0MaxtQFRlLDp38pk4QoAYBAAMCAAN3AAM4BA
     program_mockup:
       type: photo
-      file_id: "AgACAgIAAxkBAAOoaWKbQhNvY6sp1rACFMdWa9c23b8AAlwMaxtQFRlLBnShH8ayTTIBAAMCAAN3AAM4BA"
+      file_id: AgACAgIAAxkBAAOoaWKbQhNvY6sp1rACFMdWa9c23b8AAlwMaxtQFRlLBnShH8ayTTIBAAMCAAN3AAM4BA
   short_description: >
     Курс для тех, кто хочет работать легально, уверенно и без страха
     перед налоговой, штрафами и юридическими рисками.
@@ -3290,7 +3290,7 @@ sales_script:
       В рамках гостевого доступа пользователям предоставляется презентация
       с подробным описанием всех вариантов заработка в проекте INSTART.
     task_for_user: "выбрать подходящие для себя варианты заработка"
-    presentation_file_id: "BAACAgIAAxkBAANbaWI_CeLiJqAmvXbME82L8cYeIvYAAgN9AAKl91lKSz_UN_LSM-A4BA"
+    presentation_file_id: BAACAgIAAxkBAANbaWI_CeLiJqAmvXbME82L8cYeIvYAAgN9AAKl91lKSz_UN_LSM-A4BA
 earnings_options:
   title: "Основные варианты заработка в проекте INSTART"
   description: >
@@ -3465,8 +3465,8 @@ guest_access:
     name: "Официальный сайт проекта INSTART"
     url: "https://ooo-instart.ru"
   promo_materials:
-    guest_access_layout_file_id: "AgACAgIAAxkBAANgaWJGZNRpMTcFei1nM3etopy4cG0AAlQOaxtQFRFL_1lgKL88EMIBAAMCAAN5AAM4BA"
-    presentation_file_id: "BAACAgIAAxkBAANbaWI_CeLiJqAmvXbME82L8cYeIvYAAgN9AAKl91lKSz_UN_LSM-A4BA"
+    guest_access_layout_file_id: AgACAgIAAxkBAANgaWJGZNRpMTcFei1nM3etopy4cG0AAlQOaxtQFRFL_1lgKL88EMIBAAMCAAN5AAM4BA
+    presentation_file_id: BAACAgIAAxkBAANbaWI_CeLiJqAmvXbME82L8cYeIvYAAgN9AAKl91lKSz_UN_LSM-A4BA
   registration_instructions:
     steps:
       - "Перейти на официальный сайт проекта INSTART"
@@ -3478,11 +3478,11 @@ guest_access:
       - "После активации перейти в левом боковом меню в раздел «Бесплатный гостевой доступ»"
 
   activation_materials:
-    instruction_file_id: "BAACAgIAAxkBAANmaWJ9B-DHJOcAAWXus13sQtSgpkwUAAJRkAACUBURSznKlIJVjL67OAQ"
-    memo_file_id: "AgACAgIAAxkBAAO2aWO0VJaRGyk3tga9wm4tysHz1_4AAqYMaxtQFSFLeDye5GJW_SEBAAMCAAN5AAM4BA"
+    instruction_file_id: BAACAgIAAxkBAANmaWJ9B-DHJOcAAWXus13sQtSgpkwUAAJRkAACUBURSznKlIJVjL67OAQ
+    memo_file_id: AgACAgIAAxkBAAO2aWO0VJaRGyk3tga9wm4tysHz1_4AAqYMaxtQFSFLeDye5GJW_SEBAAMCAAN5AAM4BA
   guest_key:
     validity: "48 часов"
-    key: "NEFRLXGNGU86AU0EDLXGN069R62IJP7MD85NXH5C4ZAA4APFIG8ASFTHL55O48S4"
+    key: NEFRLXGNGU86AU0EDLXGN069R62IJP7MD85NXH5C4ZAA4APFIG8ASFTHL55O48S4
   available_sections:
     lessons:
       - "Возможности проекта INSTART"
