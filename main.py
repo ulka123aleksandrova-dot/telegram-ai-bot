@@ -922,14 +922,13 @@ BUY_INTENT_RE = re.compile(r"\b(купить|оплат(ить|а)|готов(а
 # =========================
 # HANDLERS
 # =========================
-@@dp.message(CommandStart())
+@dp.message(CommandStart())
 async def on_start(message: Message):
     user_id = message.from_user.id
 
-    # грузим/создаём состояние пользователя
     st = await db_get_user(user_id)
 
-    # сбрасываем воронку на старт (но sent_media оставляем, чтобы не слать повторно)
+    # сбрасываем воронку
     st.stage = Stage.ASK_NAME
     st.goal = None
     st.selected_type = None
@@ -941,9 +940,10 @@ async def on_start(message: Message):
 
     msg = (
         "Здравствуйте! 😊\n\n"
-        f"Я {kb.assistant_name()} — помощница куратора {kb.owner_name()} в онлайн-школе {kb.project_name()}.\n\n"
-        "Я расскажу о школе INSTART, курсах, тарифах и возможностях заработка онлайн."
-        "Помогу подобрать направление, которое подойдёт именно Вам.\n\n"
+        f"Я {kb.assistant_name()} — помощница куратора {kb.owner_name()} "
+        f"в онлайн-школе {kb.project_name()}.\n\n"
+        "Я могу рассказать о школе INSTART, курсах, тарифах и возможностях "
+        "заработка онлайн и помочь выбрать подходящее направление.\n\n"
         "Подскажите, пожалуйста, как я могу к Вам обращаться?"
     )
 
@@ -964,37 +964,45 @@ async def on_text(message: Message):
 
     await db_add_message(user_id, "user", text)
 
-    # ---- 1) ask_name stage ----
-    if st.stage == "ask_name":
-        first, last = extract_name(text)
-        if first:
-            st.first_name = first
-            st.last_name = last
-            st.sex = guess_sex_by_name(first)
-            st.stage = "discovery"
+   # ---- 1) ASK_NAME ----
+if st.stage == Stage.ASK_NAME:
+    first, last = extract_name(text)
+    if first:
+        st.first_name = first
+        st.last_name = last
+        st.sex = guess_sex_by_name(first)
+
+        # если имя неоднозначное — уточняем род
+        if st.sex == "u":
+            st.stage = Stage.ASK_NAME
             await db_upsert_user(st)
 
-            # если имя неоднозначное — уточним
-            if st.sex == "u":
-                q = (
-                    f"{first}, очень приятно познакомиться! 😊\n\n"
-                    "Подскажите, пожалуйста, как к Вам правильно обращаться — в мужском или женском роде?"
-                )
-                await db_add_message(user_id, "assistant", q)
-                await send_text(message, q)
-                return
-
-            q = (
+            msg = (
                 f"{first}, очень приятно познакомиться! 😊\n\n"
-                "Подскажите, пожалуйста, что Вам сейчас ближе?\n"
-                "1) Подработка\n"
-                "2) Новая онлайн-профессия\n"
-                "3) Развитие в проекте (партнёрство/кураторство)\n\n"
-                "Можно просто цифрой."
+                "Подскажите, пожалуйста, как к Вам правильно обращаться — "
+                "в мужском или женском роде?"
             )
-            await db_add_message(user_id, "assistant", q)
-            await send_text(message, q)
+            await db_add_message(user_id, "assistant", msg)
+            await send_text(message, msg)
             return
+
+        # ИМЯ ЕСТЬ → СПРАШИВАЕМ ПРО ЗНАКОМСТВО С INSTART
+        st.stage = Stage.FAMILIARITY
+        await db_upsert_user(st)
+
+        msg = (
+            f"{first}, очень приятно познакомиться! 😊\n\n"
+            "Скажите, пожалуйста, Вы уже были знакомы с проектом INSTART ранее?\n\n"
+            "Ответьте, пожалуйста: «Да» или «Нет»."
+        )
+        await db_add_message(user_id, "assistant", msg)
+        await send_text(message, msg)
+        return
+
+    msg = "Подскажите, пожалуйста, как я могу к Вам обращаться? 🙂 (Можно просто имя)"
+    await db_add_message(user_id, "assistant", msg)
+    await send_text(message, msg)
+    return
 
         # человек написал не имя
         retry = "Подскажите, пожалуйста, как я могу к Вам обращаться? 🙂 (Можно просто имя)"
