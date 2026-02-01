@@ -964,51 +964,41 @@ async def on_text(message: Message):
 
     await db_add_message(user_id, "user", text)
 
-   # ---- 1) ASK_NAME ----
-if st.stage == Stage.ASK_NAME:
-    first, last = extract_name(text)
-    if first:
-        st.first_name = first
-        st.last_name = last
-        st.sex = guess_sex_by_name(first)
-
-        # если имя неоднозначное — уточняем род
-        if st.sex == "u":
-            st.stage = Stage.ASK_NAME
+   # ---- 1) ask_name stage ----
+    if st.stage == Stage.ASK_NAME:
+        first, last = extract_name(text)
+        if first:
+            st.first_name = first
+            st.last_name = last
+            st.sex = guess_sex_by_name(first)
+            st.stage = "discovery"
             await db_upsert_user(st)
 
-            msg = (
+            # если имя неоднозначное — уточним
+            if st.sex == "u":
+                q = (
+                    f"{first}, очень приятно познакомиться! 😊\n\n"
+                    "Подскажите, пожалуйста, как к Вам правильно обращаться — в мужском или женском роде?"
+                )
+                await db_add_message(user_id, "assistant", q)
+                await send_text(message, q)
+                return
+
+            q = (
                 f"{first}, очень приятно познакомиться! 😊\n\n"
-                "Подскажите, пожалуйста, как к Вам правильно обращаться — "
-                "в мужском или женском роде?"
+                "Скажите, пожалуйста, Вы уже знакомы с проектом INSTART ранее?\n\n"
+                "Ответьте, пожалуйста: «Да» или «Нет»."
             )
-            await db_add_message(user_id, "assistant", msg)
-            await send_text(message, msg)
+            await db_add_message(user_id, "assistant", q)
+            await send_text(message, q)
             return
-
-        # ИМЯ ЕСТЬ → СПРАШИВАЕМ ПРО ЗНАКОМСТВО С INSTART
-        st.stage = Stage.FAMILIARITY
-        await db_upsert_user(st)
-
-        msg = (
-            f"{first}, очень приятно познакомиться! 😊\n\n"
-            "Скажите, пожалуйста, Вы уже были знакомы с проектом INSTART ранее?\n\n"
-            "Ответьте, пожалуйста: «Да» или «Нет»."
-        )
-        await db_add_message(user_id, "assistant", msg)
-        await send_text(message, msg)
-        return
-
-    msg = "Подскажите, пожалуйста, как я могу к Вам обращаться? 🙂 (Можно просто имя)"
-    await db_add_message(user_id, "assistant", msg)
-    await send_text(message, msg)
-    return
 
         # человек написал не имя
         retry = "Подскажите, пожалуйста, как я могу к Вам обращаться? 🙂 (Можно просто имя)"
         await db_add_message(user_id, "assistant", retry)
         await send_text(message, retry)
         return
+
 
     # ---- 1.1) clarify sex if needed ----
     if st.stage == "discovery" and st.sex == "u":
