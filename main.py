@@ -913,28 +913,22 @@ BUY_INTENT_RE = re.compile(r"\b(купить|оплат(ить|а)|готов(а
 # =========================
 # HANDLERS
 # =========================
-@@dp.message(CommandStart())
-async def start(message: Message):
+@dp.message(CommandStart())
+async def on_start(message: Message):
     user_id = message.from_user.id
-    await db_init()
-    cleanup_states(time.time())
-
     st = await db_get_user(user_id)
+
     st.stage = "ask_name"
     await db_upsert_user(st)
 
-    msg = (
-        "Здравствуйте! 😊\n\n"
-        f"Я {kb.assistant_name} — помощница куратора {kb.owner_name} "
-        f"в онлайн-школе {kb.project_name}.\n\n"
-        "Я расскажу о школе INSTART, курсах, тарифах и возможностях заработка онлайн "
-        "Помогу подобрать направление, которое подойдёт именно Вам.\n\n"
-        "Если Вы написали сюда, значит, Вас интересуют навыки для удалённой работы " "и дополнительного или основного дохода онлайн.\n\n"
-        "Подскажите, пожалуйста, как я могу к Вам обращаться?"
+    txt = (
+        f"Здравствуйте! 😊\n\n"
+        f"Я {kb.assistant_name()} — помощница куратора {kb.owner_name()} в онлайн-школе {kb.project_name()}.\n"
+        "Помогу подобрать курс и тариф под Вашу цель.\n\n"
+        "Как я могу к Вам обращаться?"
     )
-
-    await db_add_message(user_id, "assistant", msg)
-    await send_text(message, msg)
+    await db_add_message(user_id, "assistant", txt)
+    await send_text(message, txt)
 
 
 @dp.message(F.text)
@@ -957,12 +951,11 @@ async def on_text(message: Message):
             st.first_name = first
             st.last_name = last
             st.sex = guess_sex_by_name(first)
+            st.stage = "discovery"
+            await db_upsert_user(st)
 
-            # если имя неоднозначное — уточним род
+            # если имя неоднозначное — уточним
             if st.sex == "u":
-                st.stage = "clarify_sex"
-                await db_upsert_user(st)
-
                 q = (
                     f"{first}, очень приятно познакомиться! 😊\n\n"
                     "Подскажите, пожалуйста, как к Вам правильно обращаться — в мужском или женском роде?"
@@ -971,15 +964,13 @@ async def on_text(message: Message):
                 await send_text(message, q)
                 return
 
-            # если род определён — идём дальше по воронке
-            st.stage = "familiarity"
-            await db_upsert_user(st)
-
             q = (
                 f"{first}, очень приятно познакомиться! 😊\n\n"
-                "Скажите, пожалуйста, Вы уже знакомы с проектом INSTART ранее?"
-                "\n\n"
-                "Ответьте, пожалуйста: «Да» или «Нет»."
+                "Подскажите, пожалуйста, что Вам сейчас ближе?\n"
+                "1) Подработка\n"
+                "2) Новая онлайн-профессия\n"
+                "3) Развитие в проекте (партнёрство/кураторство)\n\n"
+                "Можно просто цифрой."
             )
             await db_add_message(user_id, "assistant", q)
             await send_text(message, q)
@@ -992,11 +983,11 @@ async def on_text(message: Message):
         return
 
     # ---- 1.1) clarify sex if needed ----
-    if st.stage == "clarify_sex":
+    if st.stage == "discovery" and st.sex == "u":
         t = normalize_text(text)
-        if any(w in t for w in ["жен", "дев", "женск", "ж"]):
+        if any(w in t for w in ["жен", "дев", "ж"]):
             st.sex = "f"
-        elif any(w in t for w in ["муж", "пар", "мужск", "м"]):
+        elif any(w in t for w in ["муж", "пар", "м"]):
             st.sex = "m"
         else:
             msg = "Я правильно поняла: обращаться в мужском или женском роде? 🙂"
@@ -1004,113 +995,14 @@ async def on_text(message: Message):
             await send_text(message, msg)
             return
 
-        st.stage = "familiarity"
         await db_upsert_user(st)
-
         msg = (
             "Спасибо! 😊\n\n"
-            "Скажите, пожалуйста, Вы уже знакомы с проектом INSTART ранее?"
-            "\n\n"
-            "Ответьте, пожалуйста: «Да» или «Нет»."
-        )
-        await db_add_message(user_id, "assistant", msg)
-        await send_text(message, msg)
-        return
-
-    # ---- 2) familiarity stage: knows INSTART or not ----
-    if st.stage == "familiarity":
-        t = normalize_text(text)
-
-        yes = any(w in t for w in ["да", "знаком", "знакома", "слышал", "слышала", "уже знаю", "есть опыт"])
-        no = any(w in t for w in ["нет", "не знаком", "не знакома", "впервые", "первый раз", "не знаю"])
-
-        if yes:
-            st.stage = "focus_choice"
-            await db_upsert_user(st)
-
-            msg = (
-                "Поняла Вас 🙂\n\n"
-                "Подскажите, пожалуйста: Вас интересует какой-то конкретный курс или тариф?\n"
-                "Или Вы пока не уверены, в каком направлении лучше развиваться в INSTART?"
-            )
-            await db_add_message(user_id, "assistant", msg)
-            await send_text(message, msg)
-            return
-
-        if no:
-            # отправим презентацию + краткое описание проекта (строго из YAML)
-            proj_desc = kb.get_project_description()
-            intro = (
-                "Тогда лучше начнём с короткого обзора 🙂\n\n"
-                + (proj_desc.strip() if proj_desc else "Сейчас отправлю презентацию проекта INSTART 📎")
-            )
-            await db_add_message(user_id, "assistant", intro)
-            await send_text(message, intro)
-
-            media = kb.resolve_root_media_by_key("презентация_проекта_с_призывом_хочу_гостевой_ключ")
-            if media:
-                await send_media_once(message, st, media, intro="Сейчас отправлю презентацию проекта 📎")
-            else:
-                # fallback: guest_access.promo_materials.presentation_file_id
-                ga = kb.guest_access()
-                pres_id = None
-                if isinstance(ga, dict):
-                    pm = ga.get("promo_materials", {})
-                    if isinstance(pm, dict):
-                        pres_id = pm.get("presentation_file_id")
-                if pres_id:
-                    media2 = {"type": "video", "file_id": str(pres_id), "title": "Презентация проекта INSTART"}
-                    await send_media_once(message, st, media2, intro="Сейчас отправлю презентацию проекта 📎")
-
-            st.stage = "path_choice"
-            await db_upsert_user(st)
-
-            msg = (
-                "Подскажите, пожалуйста, что Вам сейчас интереснее всего? (можно цифрой)\n\n"
-                "1) Вариант 1. Онлайн-специалист\n"
-                "2) Вариант 2. Куратор проекта INSTART\n"
-                "3) Вариант 3. Заработок на заданиях"
-            )
-            await db_add_message(user_id, "assistant", msg)
-            await send_text(message, msg)
-            return
-
-        msg = "Подскажите, пожалуйста, Вы знакомы с INSTART ранее? Ответьте «Да» или «Нет» 🙂"
-        await db_add_message(user_id, "assistant", msg)
-        await send_text(message, msg)
-        return
-
-    # ---- 3) path_choice stage: pick 1/2/3 ----
-    if st.stage == "path_choice":
-        t = normalize_text(text)
-
-        choice = None
-        if t in {"1", "1.", "онлайн-специалист", "онлайн специалист", "специалист"} or "онлайн" in t:
-            choice = "Вариант 1. Онлайн-специалист"
-        elif t in {"2", "2.", "куратор", "партнер", "партнёр"} or "куратор" in t:
-            choice = "Вариант 2. Куратор проекта INSTART"
-        elif t in {"3", "3.", "задания", "простые задания"} or "задан" in t:
-            choice = "Вариант 3. Заработок на заданиях"
-
-        if not choice:
-            msg = (
-                "Подскажите, пожалуйста, выберите один вариант 🙂\n\n"
-                "1) Онлайн-специалист\n"
-                "2) Куратор проекта INSTART\n"
-                "3) Заработок на заданиях"
-            )
-            await db_add_message(user_id, "assistant", msg)
-            await send_text(message, msg)
-            return
-
-        st.goal = choice
-        st.stage = "normal"
-        await db_upsert_user(st)
-
-        msg = (
-            f"Поняла Вас 🙂 Вы выбрали: **{choice}**.\n\n"
-            "Теперь уточню один момент, чтобы подобрать лучший курс/тариф:\n"
-            "Вы уже присмотрели конкретный курс/тариф или хотите, чтобы я предложила 1–3 варианта под Вашу цель?"
+            "Подскажите, пожалуйста, что Вам сейчас ближе?\n"
+            "1) Подработка\n"
+            "2) Новая онлайн-профессия\n"
+            "3) Развитие в проекте (партнёрство/кураторство)\n\n"
+            "Можно просто цифрой."
         )
         await db_add_message(user_id, "assistant", msg)
         await send_text(message, msg)
