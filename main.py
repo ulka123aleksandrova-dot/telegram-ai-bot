@@ -1168,122 +1168,142 @@ async def on_text(message: Message):
 
     # ---- 1.4) path_choice stage: выбор варианта 1/2/3 ----
     if st.stage == Stage.PATH_CHOICE:
-    t = normalize_text(text)
+        t = normalize_text(text)
 
-    choice_key = None
-    choice_title = None
+        choice_key: Optional[str] = None
+        # 1) Онлайн-специалист
+        if t in {"1", "1.", "онлайн специалист", "онлайн-специалист", "специалист"} or ("онлайн" in t and "специал" in t):
+            choice_key = "online_specialist"
+        # 2) Куратор
+        elif t in {"2", "2.", "куратор", "кураторство", "партнер", "партнёр"} or "куратор" in t:
+            choice_key = "curator"
+        # 3) Задания
+        elif t in {"3", "3.", "задания", "простые задания"} or "задан" in t:
+            choice_key = "simple_tasks"
 
-    # распознаём выбор
-    if t in {"1", "1.", "онлайн-специалист", "онлайн специалист", "специалист"} or ("онлайн" in t and "специал" in t):
-        choice_key = "online_specialist"
-        choice_title = "Вариант 1. Онлайн-специалист"
-    elif t in {"2", "2.", "куратор", "партнер", "партнёр", "партнерство"} or "куратор" in t:
-        choice_key = "curator"
-        choice_title = "Вариант 2. Куратор проекта INSTART"
-    elif t in {"3", "3.", "задания", "простые задания"} or "задан" in t:
-        choice_key = "simple_tasks"
-        choice_title = "Вариант 3. Заработок на заданиях"
+        if not choice_key:
+            msg = (
+                "Подскажите, пожалуйста, выберите один вариант 🙂\n\n"
+                "1) Вариант 1. Онлайн-специалист\n"
+                "2) Вариант 2. Куратор проекта INSTART\n"
+                "3) Вариант 3. Заработок на заданиях\n\n"
+                "Можно цифрой."
+            )
+            await db_add_message(user_id, "assistant", msg)
+            await send_text(message, msg)
+            return
 
-    if not choice_key:
-        msg = (
-            "Подскажите, пожалуйста, выберите один вариант 🙂\n\n"
-            "1) Вариант 1. Онлайн-специалист\n"
-            "2) Вариант 2. Куратор проекта INSTART\n"
-            "3) Вариант 3. Заработок на заданиях"
-        )
-        await db_add_message(user_id, "assistant", msg)
-        await send_text(message, msg)
-        return
+        # Берём данные строго из knowledge.yaml
+        opt = kb.kget(f"earning_options.{choice_key}", {})
+        if not isinstance(opt, dict):
+            opt = {}
 
-    # достаём описание выбранного пути из knowledge.yaml
-    opt = kb.kget(f"earning_options.{choice_key}", {}) or {}
-    title = str(opt.get("title") or choice_title)
-    desc = str(opt.get("description") or "").strip()
-    avg_income = opt.get("average_income")
-    who = opt.get("who_is_it_for") if isinstance(opt.get("who_is_it_for"), list) else []
-    steps = opt.get("steps_to_income") if isinstance(opt.get("steps_to_income"), list) else []
+        title = str(opt.get("title") or "").strip()
+        desc = str(opt.get("description") or "").strip()
+        avg_income = opt.get("average_income")
+        who = opt.get("who_is_it_for")
+        steps = opt.get("steps_to_income")
+        client_search = opt.get("client_search", {}) if isinstance(opt.get("client_search"), dict) else {}
+        client_search_desc = str(client_search.get("description") or "").strip()
+        edu_features = opt.get("education_features")
 
-    parts = []
-    parts.append(title)
-    if desc:
-        parts.append(desc)
-    if avg_income:
-        parts.append(f"Средний доход по направлению: {avg_income}")
-    if who:
-        parts.append("Кому подходит:\n" + pretty_bullets([str(x) for x in who], limit=8))
+        parts: List[str] = []
+        if title:
+            parts.append(f"**{title}**")
+        if desc:
+            parts.append(desc)
 
-    if steps:
-        step_lines = []
-        for s in steps[:5]:
-            if isinstance(s, dict):
+        if avg_income:
+            parts.append(f"Средний доход (по базе проекта): {avg_income}")
+
+        if isinstance(who, list) and who:
+            parts.append("Кому подходит:\n" + pretty_bullets([str(x) for x in who], limit=8))
+
+        if isinstance(steps, list) and steps:
+            step_lines = []
+            for s in steps[:5]:
+                if not isinstance(s, dict):
+                    continue
                 st_title = str(s.get("title") or "").strip()
                 st_desc = str(s.get("description") or "").strip()
                 if st_title and st_desc:
-                    step_lines.append(f"{st_title}: {st_desc}")
+                    step_lines.append(f"• **{st_title}** — {st_desc}")
                 elif st_title:
-                    step_lines.append(st_title)
-        if step_lines:
-            parts.append("Как прийти к результату:\n" + pretty_bullets(step_lines, limit=6))
+                    step_lines.append(f"• **{st_title}**")
+                elif st_desc:
+                    step_lines.append(f"• {st_desc}")
+            if step_lines:
+                parts.append("Шаги к результату:\n" + "\n".join(step_lines))
 
-    msg = "\n\n".join([p for p in parts if p]).strip()
-    if not msg:
-        msg = f"Поняла Вас 🙂 Вы выбрали: {choice_title}."
+        if client_search_desc:
+            parts.append("Поиск клиентов:\n" + client_search_desc)
 
-    await db_add_message(user_id, "assistant", msg)
-    await send_text(message, msg)
+        if isinstance(edu_features, list) and edu_features:
+            parts.append("Особенности обучения:\n" + pretty_bullets([str(x) for x in edu_features], limit=8))
 
-    # ✅ Вариант 1: дополнительно показываем overview по курсам + макет “полный перечень курсов”
-    if choice_key == "online_specialist":
-        co = kb.kget("courses_overview", {}) or {}
-        intro_text = str(co.get("intro_text") or "").strip()
-        pricing_note = str(co.get("pricing_note") or "").strip()
-        common_benefits = co.get("common_benefits") if isinstance(co.get("common_benefits"), list) else []
+        msg = "\n\n".join([p for p in parts if p]).strip() or "Поняла Вас 🙂"
 
-        co_parts = []
-        if intro_text:
-            co_parts.append(intro_text)
-        if pricing_note:
-            co_parts.append(pricing_note)
-        if common_benefits:
-            co_parts.append("Что важно знать:\n" + pretty_bullets([str(x) for x in common_benefits], limit=8))
+        # фиксируем цель и переходим в normal
+        st.goal = title or choice_key
+        st.stage = Stage.NORMAL
+        await db_upsert_user(st)
 
-        if co_parts:
-            co_msg = "\n\n".join(co_parts).strip()
-            await db_add_message(user_id, "assistant", co_msg)
-            await send_text(message, co_msg)
+        await db_add_message(user_id, "assistant", msg)
+        await typing(message.chat.id)
+        await message.answer(msg, parse_mode="Markdown")
 
-        # отправляем фото “Полный перечень курсов...”
-        media = kb.kget("courses_overview.media_refs.full_courses_list")
-        if isinstance(media, dict) and media.get("file_id") and media.get("type"):
-            media_obj = {
-                "type": str(media.get("type")),
-                "file_id": str(media.get("file_id")),
-                "title": str(media.get("title") or ""),
-            }
-            await send_media_once(message, st, media_obj, intro="Отправляю полный перечень курсов INSTART с ценами 📎")
+        # ✅ ВАЖНО: если выбран “Онлайн-специалист” — отправляем обзор курсов + макет
+        if choice_key == "online_specialist":
+            co = kb.kget("courses_overview", {})
+            if isinstance(co, dict):
+                intro_text = str(co.get("intro_text") or "").strip()
+                pricing_note = str(co.get("pricing_note") or "").strip()
+                common_benefits = co.get("common_benefits") if isinstance(co.get("common_benefits"), list) else []
 
+                co_parts = []
+                if intro_text:
+                    co_parts.append(intro_text)
+                if pricing_note:
+                    co_parts.append(pricing_note)
+                if common_benefits:
+                    co_parts.append("Преимущества:\n" + pretty_bullets([str(x) for x in common_benefits], limit=8))
+
+                if co_parts:
+                    co_msg = "\n\n".join(co_parts).strip()
+                    await db_add_message(user_id, "assistant", co_msg)
+                    await send_text(message, co_msg)
+
+                # отправка макета со списком курсов (courses_overview.media_refs.full_courses_list)
+                media = None
+                media_refs = co.get("media_refs") if isinstance(co.get("media_refs"), dict) else {}
+                full_list = media_refs.get("full_courses_list") if isinstance(media_refs.get("full_courses_list"), dict) else None
+                if isinstance(full_list, dict) and full_list.get("file_id") and full_list.get("type"):
+                    media = {
+                        "type": str(full_list.get("type")),
+                        "file_id": str(full_list.get("file_id")),
+                        "title": str(full_list.get("title") or "Полный перечень курсов INSTART"),
+                    }
+
+                if media:
+                    await send_media_once(message, st, media, intro="Отправляю макет с полным перечнем курсов и ценами 📎")
+
+            follow = (
+                "Подскажите, пожалуйста:\n"
+                "Вы хотите выбрать **конкретный курс** или удобнее рассмотреть **тариф**, "
+                "чтобы получить доступ сразу к нескольким направлениям? 🙂"
+            )
+            await db_add_message(user_id, "assistant", follow)
+            await send_text(message, follow)
+            return
+
+        # Для остальных вариантов — мягко ведём к выбору тарифа/курса
         follow = (
-            "Подскажите, пожалуйста, как Вам удобнее двигаться дальше?\n"
-            "1) Выбрать 1 конкретный курс\n"
-            "2) Сравнить тарифы (в тарифе обычно выгоднее)\n"
-            "Можно просто цифрой."
+            "Подскажите, пожалуйста:\n"
+            "Вы уже присмотрели **конкретный курс/тариф**, или хотите, чтобы я предложила 1–3 варианта под Вашу цель? 🙂"
         )
         await db_add_message(user_id, "assistant", follow)
         await send_text(message, follow)
-
-    else:
-        # Вариант 2/3 — ведём к выбору курса/тарифа
-        follow = (
-            "Подскажите, пожалуйста: Вас интересует какой-то конкретный курс или тариф?\n"
-            "Или хотите, чтобы я предложила 1–3 варианта под Вашу цель?"
-        )
-        await db_add_message(user_id, "assistant", follow)
-        await send_text(message, follow)
-
-    st.goal = choice_title
-    st.stage = Stage.FOCUS
-    await db_upsert_user(st)
-    return    
+        return
 
 
     # 3.2 Презентация проекта (по вашему YAML: root media key)
