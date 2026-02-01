@@ -1108,203 +1108,185 @@ async def on_text(message: Message):
 
 
     # ---- 1.3) focus stage: знает конкретный курс/тариф или нет ----
+    # ---- 2.1) focus stage: course/tariff or not sure ----
     if st.stage == Stage.FOCUS:
         t = normalize_text(text)
 
-        # если пользователь уже написал название курса/тарифа — не мешаем: пусть отработает YAML-поиск ниже
-        found = kb.find_best(text, types=["course", "tariff"])
-        if found:
+        # варианты ответов: 1/2 из подсказки
+        if t in {"1", "1.", "курс", "конкретный курс", "хочу курс", "выбрать курс"}:
             st.stage = Stage.NORMAL
             await db_upsert_user(st)
-            # НЕ return — дальше код сам найдёт курс/тариф и покажет карточку
-        else:
-            # если “не знаю / не определился”
-            if any(w in t for w in ["не знаю", "не увер", "пока нет", "не определ", "не выбрал", "не выбрала"]):
-                # ведём в презентацию и выбор 1/2/3
-                media = kb.resolve_root_media_by_key("презентация_проекта_с_призывом_хочу_гостевой_ключ")
-                if media:
-                    await send_media_once(message, st, media, intro="Посмотрите, пожалуйста, презентацию проекта 📎")
 
-                v1 = kb.kget("earning_options.online_specialist.title", "Вариант 1. Онлайн-специалист")
-                v2 = kb.kget("earning_options.curator.title", "Вариант 2. Куратор проекта INSTART")
-                v3 = kb.kget("earning_options.simple_tasks.title", "Вариант 3. Заработок на заданиях")
-
-                st.stage = Stage.PATH_CHOICE
-                await db_upsert_user(st)
-
-                msg = (
-                    "Чтобы было проще определиться, подскажите, пожалуйста, что Вам сейчас ближе? (можно цифрой)\n\n"
-                    f"1) {v1}\n"
-                    f"2) {v2}\n"
-                    f"3) {v3}"
-                )
-                await db_add_message(user_id, "assistant", msg)
-                await send_text(message, msg)
-                return
-
-            # если пользователь говорит “курс/тариф” но без названия — попросим уточнить
-            if any(w in t for w in ["курс", "тариф"]):
-                st.stage = Stage.NORMAL
-                await db_upsert_user(st)
-
-                msg = (
-                    "Отлично 🙂 Напишите, пожалуйста, название курса или тарифа (можно как Вы его называете) — "
-                    "и я пришлю описание и материалы из базы."
-                )
-                await db_add_message(user_id, "assistant", msg)
-                await send_text(message, msg)
-                return
-
-            # иначе — уточняющий вопрос
             msg = (
-                "Подскажите, пожалуйста, Вы хотите:\n"
-                "• конкретный курс/тариф (тогда напишите название)\n"
-                "• или выбрать направление, и я подберу 1–3 варианта под Вашу цель? 🙂"
+                "Хорошо 🙂\n\n"
+                "Напишите, пожалуйста, **название курса** (как на картинке/в списке) — "
+                "и я пришлю описание, цену и материалы по нему."
             )
             await db_add_message(user_id, "assistant", msg)
             await send_text(message, msg)
             return
 
+        if t in {"2", "2.", "тариф", "тарифы", "хочу тариф", "сравнить тарифы"}:
+            st.stage = Stage.NORMAL
+            await db_upsert_user(st)
 
-    # ---- 1.4) path_choice stage: выбор варианта 1/2/3 ----
+            # покажем краткий список тарифов из knowledge.yaml
+            lines_out = []
+            for tr in kb.tariffs():
+                title = tr.get("title")
+                price = tr.get("price_rub")
+                if title and price:
+                    lines_out.append(f"• {title} — {price} ₽")
+
+            if lines_out:
+                msg = (
+                    "Отлично 🙂 Тогда посмотрим тарифы.\n\n"
+                    "Актуальные тарифы:\n"
+                    + "\n".join(lines_out)
+                    + "\n\n"
+                    "Напишите, пожалуйста, название тарифа, который хотите рассмотреть подробнее — "
+                    "и я пришлю состав и стоимость."
+                )
+            else:
+                msg = (
+                    "Сейчас не вижу тарифы в базе 🙈\n\n"
+                    "Напишите, пожалуйста, что удобнее: выбрать **конкретный курс** или уточнить у куратора по тарифам?"
+                )
+
+            await db_add_message(user_id, "assistant", msg)
+            await send_text(message, msg)
+            return
+
+        # если пользователь пишет “не знаю / не уверен”
+        if any(w in t for w in ["не знаю", "не уверен", "не уверена", "помоги выбрать", "подскажи", "подскажите"]):
+            st.stage = Stage.NORMAL
+            await db_upsert_user(st)
+
+            msg = (
+                "Поняла Вас 🙂\n\n"
+                "Чтобы я предложила 1–3 варианта под Вашу цель, уточните, пожалуйста:\n"
+                "1) Сколько времени в неделю Вы готовы уделять обучению?\n"
+                "2) Есть ли уже опыт/навыки в онлайне (например: дизайн, тексты, соцсети, маркетплейсы)?"
+            )
+            await db_add_message(user_id, "assistant", msg)
+            await send_text(message, msg)
+            return
+
+        # если человек уже написал название курса/тарифа — просто пойдём в обычную логику (kb.find_best)
+        st.stage = Stage.NORMAL
+        await db_upsert_user(st)
+        # дальше обработка продолжится в блоке NORMAL (поиск курса/тарифа)
+
+    # ---- 2.2) path_choice stage: choose 1/2/3 earnings paths ----
     if st.stage == Stage.PATH_CHOICE:
         t = normalize_text(text)
 
-        choice_key: Optional[str] = None
-        # 1) Онлайн-специалист
-        if t in {"1", "1.", "онлайн специалист", "онлайн-специалист", "специалист"} or ("онлайн" in t and "специал" in t):
-            choice_key = "online_specialist"
-        # 2) Куратор
-        elif t in {"2", "2.", "куратор", "кураторство", "партнер", "партнёр"} or "куратор" in t:
-            choice_key = "curator"
-        # 3) Задания
-        elif t in {"3", "3.", "задания", "простые задания"} or "задан" in t:
-            choice_key = "simple_tasks"
+        # цифры 1/2/3
+        if t in {"1", "1.", "онлайн-специалист", "онлайн специалист", "специалист"}:
+            choice = 1
+        elif t in {"2", "2.", "куратор", "куратор проекта", "партнер", "партнёр"}:
+            choice = 2
+        elif t in {"3", "3.", "задания", "подработка", "простые задания"}:
+            choice = 3
+        else:
+            choice = None
 
-        if not choice_key:
-            msg = (
-                "Подскажите, пожалуйста, выберите один вариант 🙂\n\n"
-                "1) Вариант 1. Онлайн-специалист\n"
-                "2) Вариант 2. Куратор проекта INSTART\n"
-                "3) Вариант 3. Заработок на заданиях\n\n"
-                "Можно цифрой."
+        if not choice:
+            retry = (
+                "Подскажите, пожалуйста, что Вам ближе?\n"
+                "1) Онлайн-специалист\n"
+                "2) Куратор проекта INSTART\n"
+                "3) Заработок на заданиях\n\n"
+                "Можно цифрой или словами."
             )
+            await db_add_message(user_id, "assistant", retry)
+            await send_text(message, retry)
+            return
+
+        # достаём блок из knowledge.yaml
+        opts = kb.get("earning_options", {}) or {}
+        chosen = None
+        if choice == 1:
+            chosen = opts.get("online_specialist")
+        elif choice == 2:
+            chosen = opts.get("curator")
+        elif choice == 3:
+            chosen = opts.get("simple_tasks")
+
+        # сохраняем выбор цели (если поле есть)
+        try:
+            st.profile.focus = chosen.get("title") if chosen else None
+        except Exception:
+            pass
+
+        st.stage = Stage.FOCUS
+        await db_upsert_user(st)
+
+        if not chosen:
+            msg = "Поняла 🙂 Напишите, пожалуйста, что именно Вас интересует — курс, тариф или вариант заработка?"
             await db_add_message(user_id, "assistant", msg)
             await send_text(message, msg)
             return
 
-        # Берём данные строго из knowledge.yaml
-        opt = kb.kget(f"earning_options.{choice_key}", {})
-        if not isinstance(opt, dict):
-            opt = {}
-
-        title = str(opt.get("title") or "").strip()
-        desc = str(opt.get("description") or "").strip()
-        avg_income = opt.get("average_income")
-        who = opt.get("who_is_it_for")
-        steps = opt.get("steps_to_income")
-        client_search = opt.get("client_search", {}) if isinstance(opt.get("client_search"), dict) else {}
-        client_search_desc = str(client_search.get("description") or "").strip()
-        edu_features = opt.get("education_features")
-
-        parts: List[str] = []
+        # красивое описание варианта
+        parts = []
+        title = chosen.get("title")
+        desc = chosen.get("description")
+        avg = chosen.get("average_income") or chosen.get("income") or chosen.get("income_range")
         if title:
             parts.append(f"**{title}**")
         if desc:
-            parts.append(desc)
+            parts.append(str(desc).strip())
+        if avg:
+            parts.append(f"💰 Потенциальный доход: {avg}")
 
-        if avg_income:
-            parts.append(f"Средний доход (по базе проекта): {avg_income}")
+        # для варианта 1 дополнительно показываем список курсов
+        if choice == 1:
+            co = kb.get("courses_overview", {}) or {}
+            intro = (co.get("intro_text") or "").strip()
+            pricing_note = (co.get("pricing_note") or "").strip()
+            common_benefits = co.get("common_benefits") or []
+            parts2 = []
+            if intro:
+                parts2.append(intro)
+            if pricing_note:
+                parts2.append(pricing_note)
+            if common_benefits:
+                parts2.append("✅ Что важно:\n" + "\n".join([f"• {x}" for x in common_benefits]))
 
-        if isinstance(who, list) and who:
-            parts.append("Кому подходит:\n" + pretty_bullets([str(x) for x in who], limit=8))
+            full = co.get("media_refs", {}).get("full_courses_list")
+            msg = "\n\n".join([p for p in parts if p]) + ("\n\n" + "\n\n".join(parts2) if parts2 else "")
+            await db_add_message(user_id, "assistant", msg)
+            await send_text(message, msg)
 
-        if isinstance(steps, list) and steps:
-            step_lines = []
-            for s in steps[:5]:
-                if not isinstance(s, dict):
-                    continue
-                st_title = str(s.get("title") or "").strip()
-                st_desc = str(s.get("description") or "").strip()
-                if st_title and st_desc:
-                    step_lines.append(f"• **{st_title}** — {st_desc}")
-                elif st_title:
-                    step_lines.append(f"• **{st_title}**")
-                elif st_desc:
-                    step_lines.append(f"• {st_desc}")
-            if step_lines:
-                parts.append("Шаги к результату:\n" + "\n".join(step_lines))
-
-        if client_search_desc:
-            parts.append("Поиск клиентов:\n" + client_search_desc)
-
-        if isinstance(edu_features, list) and edu_features:
-            parts.append("Особенности обучения:\n" + pretty_bullets([str(x) for x in edu_features], limit=8))
-
-        msg = "\n\n".join([p for p in parts if p]).strip() or "Поняла Вас 🙂"
-
-        # фиксируем цель и переходим в normal
-        st.goal = title or choice_key
-        st.stage = Stage.NORMAL
-        await db_upsert_user(st)
-
-        await db_add_message(user_id, "assistant", msg)
-        await typing(message.chat.id)
-        await message.answer(msg, parse_mode="Markdown")
-
-        # ✅ ВАЖНО: если выбран “Онлайн-специалист” — отправляем обзор курсов + макет
-        if choice_key == "online_specialist":
-            co = kb.kget("courses_overview", {})
-            if isinstance(co, dict):
-                intro_text = str(co.get("intro_text") or "").strip()
-                pricing_note = str(co.get("pricing_note") or "").strip()
-                common_benefits = co.get("common_benefits") if isinstance(co.get("common_benefits"), list) else []
-
-                co_parts = []
-                if intro_text:
-                    co_parts.append(intro_text)
-                if pricing_note:
-                    co_parts.append(pricing_note)
-                if common_benefits:
-                    co_parts.append("Преимущества:\n" + pretty_bullets([str(x) for x in common_benefits], limit=8))
-
-                if co_parts:
-                    co_msg = "\n\n".join(co_parts).strip()
-                    await db_add_message(user_id, "assistant", co_msg)
-                    await send_text(message, co_msg)
-
-                # отправка макета со списком курсов (courses_overview.media_refs.full_courses_list)
-                media = None
-                media_refs = co.get("media_refs") if isinstance(co.get("media_refs"), dict) else {}
-                full_list = media_refs.get("full_courses_list") if isinstance(media_refs.get("full_courses_list"), dict) else None
-                if isinstance(full_list, dict) and full_list.get("file_id") and full_list.get("type"):
-                    media = {
-                        "type": str(full_list.get("type")),
-                        "file_id": str(full_list.get("file_id")),
-                        "title": str(full_list.get("title") or "Полный перечень курсов INSTART"),
-                    }
-
-                if media:
-                    await send_media_once(message, st, media, intro="Отправляю макет с полным перечнем курсов и ценами 📎")
+            if full and full.get("type") == "photo" and full.get("file_id"):
+                try:
+                    await bot.send_photo(message.chat.id, full["file_id"], caption=full.get("title") or "")
+                except Exception:
+                    pass
 
             follow = (
                 "Подскажите, пожалуйста:\n"
-                "Вы хотите выбрать **конкретный курс** или удобнее рассмотреть **тариф**, "
-                "чтобы получить доступ сразу к нескольким направлениям? 🙂"
+                "1) Выбрать **конкретный курс**\n"
+                "2) Рассмотреть **тариф**, чтобы получить доступ сразу к нескольким направлениям\n\n"
+                "Можно ответить цифрой 1/2 или словами «курс/тариф» 🙂"
             )
             await db_add_message(user_id, "assistant", follow)
             await send_text(message, follow)
             return
 
-        # Для остальных вариантов — мягко ведём к выбору тарифа/курса
+        # для вариантов 2/3 просто отправим описание и перейдём к FOCUS (что именно смотреть дальше)
+        msg = "\n\n".join([p for p in parts if p])
+        await db_add_message(user_id, "assistant", msg)
+        await send_text(message, msg)
+
         follow = (
-            "Подскажите, пожалуйста:\n"
-            "Вы уже присмотрели **конкретный курс/тариф**, или хотите, чтобы я предложила 1–3 варианта под Вашу цель? 🙂"
+            "Подскажите, пожалуйста: Вас интересует какой-то **конкретный курс/тариф** в INSTART?\n"
+            "Или Вы пока не уверены, в каком направлении лучше развиваться? 🙂"
         )
         await db_add_message(user_id, "assistant", follow)
         await send_text(message, follow)
         return
-
 
     # 3.2 Презентация проекта (по вашему YAML: root media key)
     if "презент" in qn:
