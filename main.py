@@ -1002,28 +1002,7 @@ async def on_text(message: Message):
 
     # ---- 1.1) clarify sex if needed ----
     if st.stage == "discovery" and st.sex == "u":
-        t = normalize_text(text)
-        if any(w in t for w in ["жен", "дев", "ж"]):
-            st.sex = "f"
-        elif any(w in t for w in ["муж", "пар", "м"]):
-            st.sex = "m"
-        else:
-            msg = "Я правильно поняла: обращаться в мужском или женском роде? 🙂"
-            await db_add_message(user_id, "assistant", msg)
-            await send_text(message, msg)
-            return
-
-        await db_upsert_user(st)
-        msg = (
-            "Спасибо! 😊\n\n"
-            "Подскажите, пожалуйста, что Вам сейчас ближе?\n"
-            "1) Подработка\n"
-            "2) Новая онлайн-профессия\n"
-            "3) Развитие в проекте (партнёрство/кураторство)\n\n"
-            "Можно просто цифрой."
-        )
-        await db_add_message(user_id, "assistant", msg)
-        await send_text(message, msg)
+        ...
         return
 
     # ---- 2) discovery stage: goal ----
