@@ -398,8 +398,8 @@ CREATE TABLE IF NOT EXISTS messages (
 class Stage:
     ASK_NAME = "ask_name"
     FAMILIARITY = "familiarity"     # знакомы ли с INSTART
-    FOCUS = "focus"                 # знают ли конкретный курс/тариф или нет
-    PATH_CHOICE = "path_choice"     # выбор 1/2/3 направлений заработка
+    FOCUS = "focus"                 # конкретный курс/тариф или пока нет
+    PATH_CHOICE = "path_choice"     # выбор 1/2/3 направления заработка
     NORMAL = "normal"
     BUY_COLLECT = "buy_collect"
     WAIT_RECEIPT = "wait_receipt"
@@ -922,22 +922,33 @@ BUY_INTENT_RE = re.compile(r"\b(купить|оплат(ить|а)|готов(а
 # =========================
 # HANDLERS
 # =========================
-@dp.message(CommandStart())
+@@dp.message(CommandStart())
 async def on_start(message: Message):
     user_id = message.from_user.id
+
+    # грузим/создаём состояние пользователя
     st = await db_get_user(user_id)
 
-    st.stage = "ask_name"
+    # сбрасываем воронку на старт (но sent_media оставляем, чтобы не слать повторно)
+    st.stage = Stage.ASK_NAME
+    st.goal = None
+    st.selected_type = None
+    st.selected_id = None
+    st.selected_title = None
+    st.selected_price = None
+
     await db_upsert_user(st)
 
-    txt = (
-        f"Здравствуйте! 😊\n\n"
-        f"Я {kb.assistant_name()} — помощница куратора {kb.owner_name()} в онлайн-школе {kb.project_name()}.\n"
-        "Помогу подобрать курс и тариф под Вашу цель.\n\n"
-        "Как я могу к Вам обращаться?"
+    msg = (
+        "Здравствуйте! 😊\n\n"
+        f"Я {kb.assistant_name()} — помощница куратора {kb.owner_name()} в онлайн-школе {kb.project_name()}.\n\n"
+        "Я расскажу о школе INSTART, курсах, тарифах и возможностях заработка онлайн."
+        "Помогу подобрать направление, которое подойдёт именно Вам.\n\n"
+        "Подскажите, пожалуйста, как я могу к Вам обращаться?"
     )
-    await db_add_message(user_id, "assistant", txt)
-    await send_text(message, txt)
+
+    await db_add_message(user_id, "assistant", msg)
+    await send_text(message, msg)
 
 
 @dp.message(F.text)
