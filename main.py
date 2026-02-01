@@ -395,11 +395,20 @@ CREATE TABLE IF NOT EXISTS messages (
 );
 """
 
+class Stage:
+    ASK_NAME = "ask_name"
+    FAMILIARITY = "familiarity"     # знакомы ли с INSTART
+    FOCUS = "focus"                 # знают ли конкретный курс/тариф или нет
+    PATH_CHOICE = "path_choice"     # выбор 1/2/3 направлений заработка
+    NORMAL = "normal"
+    BUY_COLLECT = "buy_collect"
+    WAIT_RECEIPT = "wait_receipt"
+    CONFIRM_RECEIPT = "confirm_receipt"
 
 @dataclass
 class UserState:
     user_id: int
-    stage: str = "ask_name"          # ask_name -> discovery -> normal -> collect_contacts
+    stage: str = Stage.ASK_NAME          # ASK_NAME → FAMILIARITY → PATH_CHOICE → NORMAL → BUY_COLLECT
     first_name: Optional[str] = None
     last_name: Optional[str] = None
     sex: Optional[str] = None        # "m" / "f" / "u"
