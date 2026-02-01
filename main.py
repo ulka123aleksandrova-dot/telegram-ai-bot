@@ -1069,7 +1069,7 @@ async def on_text(message: Message):
             # 1) пробуем root media по ключу
             media = kb.resolve_root_media_by_key("презентация_проекта_с_призывом_хочу_гостевой_ключ")
             if media:
-                await send_media_once(message, st, media, intro="Сейчас отправлю презентацию проекта 📎")
+                await send_media_once(message, st, media, intro="Посмотрите, пожалуйста, презентацию проекта 📎")
             else:
                 # 2) fallback: guest_access.promo_materials.presentation_file_id
                 ga = kb.guest_access()
@@ -1080,7 +1080,7 @@ async def on_text(message: Message):
                         pres_id = pm.get("presentation_file_id")
                 if pres_id:
                     media2 = {"type": "video", "file_id": str(pres_id), "title": "Презентация проекта INSTART"}
-                    await send_media_once(message, st, media2, intro="Сейчас отправлю презентацию проекта 📎")
+                    await send_media_once(message, st, media2, intro="Посмотрите, пожалуйста, презентацию проекта 📎")
 
             # спросить 1/2/3
             # Берём названия из YAML (если есть), иначе — дефолтные
@@ -1123,7 +1123,7 @@ async def on_text(message: Message):
                 # ведём в презентацию и выбор 1/2/3
                 media = kb.resolve_root_media_by_key("презентация_проекта_с_призывом_хочу_гостевой_ключ")
                 if media:
-                    await send_media_once(message, st, media, intro="Сейчас отправлю презентацию проекта 📎")
+                    await send_media_once(message, st, media, intro="Посмотрите, пожалуйста, презентацию проекта 📎")
 
                 v1 = kb.kget("earning_options.online_specialist.title", "Вариант 1. Онлайн-специалист")
                 v2 = kb.kget("earning_options.curator.title", "Вариант 2. Куратор проекта INSTART")
@@ -1206,45 +1206,6 @@ async def on_text(message: Message):
         await send_text(message, msg)
         return    
 
-    # ---- 2) discovery stage: goal ----
-    if st.stage == "discovery":
-        goal = extract_user_goal_from_text(text)
-        if goal:
-            st.goal = goal
-            st.stage = "normal"
-            await db_upsert_user(st)
-
-            msg = (
-                f"Поняла Вас 🙂 Цель — **{goal}**.\n\n"
-                "Чтобы я предложила 1–3 самых подходящих варианта, подскажите, пожалуйста:\n"
-                "Сколько времени в неделю Вы реально готовы уделять обучению?"
-            )
-            await db_add_message(user_id, "assistant", msg)
-            await send_text(message, msg)
-            return
-
-        # если не распознали, спросим ещё раз
-        msg = (
-            "Подскажите, пожалуйста, что Вам ближе?\n"
-            "1) Подработка\n"
-            "2) Новая онлайн-профессия\n"
-            "3) Развитие в проекте\n\n"
-            "Можно цифрой или словами."
-        )
-        await db_add_message(user_id, "assistant", msg)
-        await send_text(message, msg)
-        return
-
-    # ---- 3) NORMAL: YAML-first ответы ----
-    qn = normalize_text(text)
-
-    # 3.1 FAQ
-    faq_a = find_faq_answer(text, kb.faq())
-    if faq_a:
-        msg = f"{faq_a}\n\nПодскажите, пожалуйста, Ваша цель сейчас ближе к подработке, новой профессии или развитию в проекте?"
-        await db_add_message(user_id, "assistant", msg)
-        await send_text(message, msg)
-        return
 
     # 3.2 Презентация проекта (по вашему YAML: root media key)
     if "презент" in qn:
