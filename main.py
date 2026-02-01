@@ -1026,6 +1026,177 @@ async def on_text(message: Message):
         await db_add_message(user_id, "assistant", msg)
         await send_text(message, msg)
         return
+    
+    
+    # ---- 1.2) familiarity stage: знаком ли с INSTART ----
+    if st.stage == Stage.FAMILIARITY:
+        t = normalize_text(text)
+
+        yes = any(w in t for w in ["да", "знаком", "знакома", "слышал", "слышала", "уже знаю", "есть опыт"])
+        no = any(w in t for w in ["нет", "не знаком", "не знакома", "впервые", "первый раз", "не знаю"])
+
+        if yes:
+            st.stage = Stage.FOCUS
+            await db_upsert_user(st)
+
+            msg = (
+                "Поняла Вас 🙂\n\n"
+                f"Подскажите, пожалуйста: Вас интересует какой-то конкретный курс или тариф в {kb.project_name()}?\n"
+                "Или Вы пока не уверены, в каком направлении лучше развиваться?"
+            )
+            await db_add_message(user_id, "assistant", msg)
+            await send_text(message, msg)
+            return
+
+        if no:
+            # кратко о проекте (только из YAML) + презентация
+            proj_desc = kb.get_project_description()
+            intro = "Тогда давайте начнём с короткого обзора 🙂"
+            if proj_desc:
+                intro = intro + "\n\n" + proj_desc
+
+            await db_add_message(user_id, "assistant", intro)
+            await send_text(message, intro)
+
+            # 1) пробуем root media по ключу
+            media = kb.resolve_root_media_by_key("презентация_проекта_с_призывом_хочу_гостевой_ключ")
+            if media:
+                await send_media_once(message, st, media, intro="Сейчас отправлю презентацию проекта 📎")
+            else:
+                # 2) fallback: guest_access.promo_materials.presentation_file_id
+                ga = kb.guest_access()
+                pres_id = None
+                if isinstance(ga, dict):
+                    pm = ga.get("promo_materials", {})
+                    if isinstance(pm, dict):
+                        pres_id = pm.get("presentation_file_id")
+                if pres_id:
+                    media2 = {"type": "video", "file_id": str(pres_id), "title": "Презентация проекта INSTART"}
+                    await send_media_once(message, st, media2, intro="Сейчас отправлю презентацию проекта 📎")
+
+            # спросить 1/2/3
+            # Берём названия из YAML (если есть), иначе — дефолтные
+            v1 = kb.kget("earning_options.online_specialist.title", "Вариант 1. Онлайн-специалист")
+            v2 = kb.kget("earning_options.curator.title", "Вариант 2. Куратор проекта INSTART")
+            v3 = kb.kget("earning_options.simple_tasks.title", "Вариант 3. Заработок на заданиях")
+
+            st.stage = Stage.PATH_CHOICE
+            await db_upsert_user(st)
+
+            msg = (
+                "Подскажите, пожалуйста, что Вам сейчас интереснее всего? (можно цифрой)\n\n"
+                f"1) {v1}\n"
+                f"2) {v2}\n"
+                f"3) {v3}"
+            )
+            await db_add_message(user_id, "assistant", msg)
+            await send_text(message, msg)
+            return
+
+        msg = f"Подскажите, пожалуйста, Вы уже были знакомы с {kb.project_name()} ранее? Ответьте «Да» или «Нет» 🙂"
+        await db_add_message(user_id, "assistant", msg)
+        await send_text(message, msg)
+        return
+
+
+    # ---- 1.3) focus stage: знает конкретный курс/тариф или нет ----
+    if st.stage == Stage.FOCUS:
+        t = normalize_text(text)
+
+        # если пользователь уже написал название курса/тарифа — не мешаем: пусть отработает YAML-поиск ниже
+        found = kb.find_best(text, types=["course", "tariff"])
+        if found:
+            st.stage = Stage.NORMAL
+            await db_upsert_user(st)
+            # НЕ return — дальше код сам найдёт курс/тариф и покажет карточку
+        else:
+            # если “не знаю / не определился”
+            if any(w in t for w in ["не знаю", "не увер", "пока нет", "не определ", "не выбрал", "не выбрала"]):
+                # ведём в презентацию и выбор 1/2/3
+                media = kb.resolve_root_media_by_key("презентация_проекта_с_призывом_хочу_гостевой_ключ")
+                if media:
+                    await send_media_once(message, st, media, intro="Сейчас отправлю презентацию проекта 📎")
+
+                v1 = kb.kget("earning_options.online_specialist.title", "Вариант 1. Онлайн-специалист")
+                v2 = kb.kget("earning_options.curator.title", "Вариант 2. Куратор проекта INSTART")
+                v3 = kb.kget("earning_options.simple_tasks.title", "Вариант 3. Заработок на заданиях")
+
+                st.stage = Stage.PATH_CHOICE
+                await db_upsert_user(st)
+
+                msg = (
+                    "Чтобы было проще определиться, подскажите, пожалуйста, что Вам сейчас ближе? (можно цифрой)\n\n"
+                    f"1) {v1}\n"
+                    f"2) {v2}\n"
+                    f"3) {v3}"
+                )
+                await db_add_message(user_id, "assistant", msg)
+                await send_text(message, msg)
+                return
+
+            # если пользователь говорит “курс/тариф” но без названия — попросим уточнить
+            if any(w in t for w in ["курс", "тариф"]):
+                st.stage = Stage.NORMAL
+                await db_upsert_user(st)
+
+                msg = (
+                    "Отлично 🙂 Напишите, пожалуйста, название курса или тарифа (можно как Вы его называете) — "
+                    "и я пришлю описание и материалы из базы."
+                )
+                await db_add_message(user_id, "assistant", msg)
+                await send_text(message, msg)
+                return
+
+            # иначе — уточняющий вопрос
+            msg = (
+                "Подскажите, пожалуйста, Вы хотите:\n"
+                "• конкретный курс/тариф (тогда напишите название)\n"
+                "• или выбрать направление, и я подберу 1–3 варианта под Вашу цель? 🙂"
+            )
+            await db_add_message(user_id, "assistant", msg)
+            await send_text(message, msg)
+            return
+
+
+    # ---- 1.4) path_choice stage: выбор варианта 1/2/3 ----
+    if st.stage == Stage.PATH_CHOICE:
+        t = normalize_text(text)
+
+        v1 = kb.kget("earning_options.online_specialist.title", "Вариант 1. Онлайн-специалист")
+        v2 = kb.kget("earning_options.curator.title", "Вариант 2. Куратор проекта INSTART")
+        v3 = kb.kget("earning_options.simple_tasks.title", "Вариант 3. Заработок на заданиях")
+
+        choice = None
+        if t in {"1", "1."} or "онлайн" in t or "специалист" in t:
+            choice = v1
+        elif t in {"2", "2."} or "куратор" in t or "партнер" in t or "партнёр" in t:
+            choice = v2
+        elif t in {"3", "3."} or "задан" in t or "прост" in t:
+            choice = v3
+
+        if not choice:
+            msg = (
+                "Подскажите, пожалуйста, выберите один вариант 🙂\n\n"
+                f"1) {v1}\n"
+                f"2) {v2}\n"
+                f"3) {v3}"
+            )
+            await db_add_message(user_id, "assistant", msg)
+            await send_text(message, msg)
+            return
+
+        st.goal = choice
+        st.stage = Stage.NORMAL
+        await db_upsert_user(st)
+
+        msg = (
+            f"Поняла Вас 🙂 Вы выбрали: **{choice}**.\n\n"
+            "Теперь уточню один момент:\n"
+            "Вы уже присмотрели конкретный курс/тариф или хотите, чтобы я предложила 1–3 варианта под Вашу цель?"
+        )
+        await db_add_message(user_id, "assistant", msg)
+        await send_text(message, msg)
+        return    
 
     # ---- 2) discovery stage: goal ----
     if st.stage == "discovery":
