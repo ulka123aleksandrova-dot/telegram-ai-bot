@@ -1001,8 +1001,30 @@ async def on_text(message: Message):
 
 
     # ---- 1.1) clarify sex if needed ----
+    # (когда имя неоднозначное, уточняем род, потом идём в FAMILIARITY)
     if st.stage == "discovery" and st.sex == "u":
-        ...
+        t = normalize_text(text)
+        if any(w in t for w in ["жен", "дев", "женск", "ж"]):
+            st.sex = "f"
+        elif any(w in t for w in ["муж", "пар", "мужск", "м"]):
+            st.sex = "m"
+        else:
+            msg = "Я правильно поняла: обращаться в мужском или женском роде? 🙂"
+            await db_add_message(user_id, "assistant", msg)
+            await send_text(message, msg)
+            return
+
+        # после уточнения пола — спрашиваем знакомы ли с INSTART
+        st.stage = Stage.FAMILIARITY
+        await db_upsert_user(st)
+
+        msg = (
+            "Спасибо! 😊\n\n"
+            f"Скажите, пожалуйста, Вы уже были знакомы с проектом {kb.project_name()} ранее?\n\n"
+            "Ответьте, пожалуйста: «Да» или «Нет»."
+        )
+        await db_add_message(user_id, "assistant", msg)
+        await send_text(message, msg)
         return
 
     # ---- 2) discovery stage: goal ----
