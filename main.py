@@ -968,14 +968,18 @@ async def on_text(message: Message):
     if st.stage == Stage.ASK_NAME:
         first, last = extract_name(text)
         if first:
+            first = first.strip()
+            first = first[:1].upper() + first[1:]  # чтобы "таня" -> "Таня"
+
             st.first_name = first
             st.last_name = last
             st.sex = guess_sex_by_name(first)
-            st.stage = "discovery"
-            await db_upsert_user(st)
 
-            # если имя неоднозначное — уточним
+            # если имя неоднозначное — уточним род
             if st.sex == "u":
+                st.stage = "discovery"  # ВАЖНО: discovery используем только для уточнения пола
+                await db_upsert_user(st)
+
                 q = (
                     f"{first}, очень приятно познакомиться! 😊\n\n"
                     "Подскажите, пожалуйста, как к Вам правильно обращаться — в мужском или женском роде?"
@@ -984,9 +988,13 @@ async def on_text(message: Message):
                 await send_text(message, q)
                 return
 
+            # ✅ если пол определён — дальше спрашиваем знакомство с INSTART
+            st.stage = Stage.FAMILIARITY
+            await db_upsert_user(st)
+
             q = (
                 f"{first}, очень приятно познакомиться! 😊\n\n"
-                "Скажите, пожалуйста, Вы уже знакомы с проектом INSTART ранее?\n\n"
+                f"Скажите, пожалуйста, Вы уже знакомы с проектом {kb.project_name()} ранее?\n\n"
                 "Ответьте, пожалуйста: «Да» или «Нет»."
             )
             await db_add_message(user_id, "assistant", q)
