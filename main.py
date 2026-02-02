@@ -674,38 +674,140 @@ def format_tariff(t: Dict[str, Any]) -> str:
     return "\n\n".join([p for p in parts if p]).strip()
 
 
-def format_course(c: Dict[str, Any]) -> str:
-    title = c.get("title", "Курс")
-    cat = c.get("category", "")
-    price = c.get("price")
-    chat_available = c.get("chat_available")
-    short = c.get("short_description") or c.get("description") or ""
+def _course_price_text(c: dict) -> str | None:
+    """
+    Поддержка разных схем цены из knowledge.yaml:
+    - price_no_chat_rub / price_with_chat_rub
+    - price_options: [{type, price_rub}, ...]
+    - price: {with_chat_rub, without_chat_rub}
+    - prices: {with_chat, without_chat} (встречается в части курсов)
+    """
+    # 1) price_options
+    po = c.get("price_options")
+    if isinstance(po, list) and po:
+        lines = []
+        for opt in po:
+            if not isinstance(opt, dict):
+                continue
+            t = (opt.get("type") or "").strip()
+            pr = opt.get("price_rub")
+            if pr is None:
+                continue
+            if t:
+                lines.append(f"• {t}: {pr} ₽")
+            else:
+                lines.append(f"• {pr} ₽")
+        if lines:
+            return "Стоимость:\n" + "\n".join(lines)
 
-    # цена может быть dict {with_chat_rub, without_chat_rub} или просто число
-    price_txt = ""
-    if isinstance(price, dict):
-        w = price.get("with_chat_rub")
-        wo = price.get("without_chat_rub")
-        if w and wo and w != wo:
-            price_txt = f"Цена: с чатом — {w} ₽, без чата — {wo} ₽."
-        elif w:
-            price_txt = f"Цена: {w} ₽."
-        elif wo:
-            price_txt = f"Цена: {wo} ₽."
-    elif isinstance(price, (int, float)):
-        price_txt = f"Цена: {int(price)} ₽."
+    # 2) прямые поля
+    p1 = c.get("price_no_chat_rub")
+    p2 = c.get("price_with_chat_rub")
+    if isinstance(p1, (int, float)) or isinstance(p2, (int, float)):
+        lines = ["Стоимость:"]
+        if isinstance(p1, (int, float)):
+            lines.append(f"• без чата помощи: {int(p1)} ₽")
+        if isinstance(p2, (int, float)):
+            lines.append(f"• с чатом помощи: {int(p2)} ₽")
+        return "\n".join(lines)
 
-    parts = [f"**{title}**"]
-    if cat:
-        parts.append(f"Категория: {cat}")
-    if price_txt:
-        parts.append(price_txt)
-    if isinstance(chat_available, bool):
-        parts.append("Чат: " + ("есть ✅" if chat_available else "нет"))
+    # 3) price dict
+    pr = c.get("price")
+    if isinstance(pr, dict):
+        w = pr.get("with_chat_rub") or pr.get("with_chat")
+        wo = pr.get("without_chat_rub") or pr.get("without_chat")
+        lines = []
+        if w:
+            lines.append(f"• с чатом помощи: {w} ₽")
+        if wo:
+            lines.append(f"• без чата помощи: {wo} ₽")
+        if lines:
+            return "Стоимость:\n" + "\n".join(lines)
+
+    # 4) prices dict (некоторые курсы)
+    pr2 = c.get("prices")
+    if isinstance(pr2, dict):
+        w = pr2.get("with_chat") or pr2.get("with_chat_rub")
+        wo = pr2.get("without_chat") or pr2.get("without_chat_rub")
+        lines = []
+        if w:
+            lines.append(f"• с чатом помощи: {w} ₽")
+        if wo:
+            lines.append(f"• без чата помощи: {wo} ₽")
+        if lines:
+            return "Стоимость:\n" + "\n".join(lines)
+
+    # 5) одиночное поле price_rub
+    pr_single = c.get("price_rub")
+    if isinstance(pr_single, (int, float)):
+        return f"Стоимость: {int(pr_single)} ₽"
+
+    return None
+
+
+def format_course(course: dict) -> str:
+    title = str(course.get("title", "")).strip()
+    if not title:
+        title = "Курс"
+
+    parts: list[str] = [f"**{title}**"]
+
+    # короткое описание (в YAML встречаются short_about / short_description)
+    short = (course.get("short_about") or course.get("short_description") or "").strip()
     if short:
         parts.append(short)
 
-    return "\n\n".join([p for p in parts if p]).strip()
+    # статус (например temporarily_closed)
+    status = (course.get("status") or "").strip()
+    if status:
+        if status == "temporarily_closed":
+            comment = (course.get("status_comment") or "Курс временно закрыт для продажи.").strip()
+            parts.append(f"⚠️ {comment}")
+
+    # цена
+    price_txt = _course_price_text(course)
+    if price_txt:
+        parts.append(price_txt)
+
+    # чат поддержки (chat_support: {available, description})
+    cs = course.get("chat_support")
+    if isinstance(cs, dict) and cs.get("available") is True:
+        desc = (cs.get("description") or "").strip()
+        parts.append("💬 Чат помощи: доступен" + (f"\n{desc}" if desc else ""))
+
+    # кому подходит
+    who_for = course.get("who_for") or course.get("suitable_for") or course.get("suitable_for_goals")
+    if isinstance(who_for, list) and who_for:
+        items = [str(x).strip() for x in who_for if str(x).strip()]
+        if items:
+            parts.append("Кому подойдёт:\n" + "\n".join([f"• {x}" for x in items[:10]]))
+
+    # чему научитесь / что внутри
+    learn = course.get("what_you_learn") or course.get("what_is_inside")
+    if isinstance(learn, list) and learn:
+        items = [str(x).strip() for x in learn if str(x).strip()]
+        if items:
+            parts.append("Что получите:\n" + "\n".join([f"• {x}" for x in items[:10]]))
+
+    # результат
+    res = course.get("result") or course.get("results") or course.get("results_after_course")
+    if isinstance(res, list) and res:
+        items = [str(x).strip() for x in res if str(x).strip()]
+        if items:
+            parts.append("Результат:\n" + "\n".join([f"• {x}" for x in items[:10]]))
+
+    # гео-ограничения (если есть)
+    geo = course.get("geo_limitations")
+    if isinstance(geo, dict):
+        note = (geo.get("note") or "").strip()
+        allowed = geo.get("allowed_countries")
+        if note:
+            parts.append(f"🌍 Важно:\n{note}")
+        elif isinstance(allowed, list) and allowed:
+            parts.append("🌍 Доступно для стран: " + ", ".join([str(x) for x in allowed]))
+
+    return "\n\n".join(parts)
+
 
 
 def format_guest_access(g: Dict[str, Any]) -> str:
@@ -1287,10 +1389,18 @@ async def on_text(message: Message):
                 if media:
                     await send_media_once(message, st, media, intro="Отправляю макет с полным перечнем курсов и ценами 📎")
 
+            # ✅ ВАЖНО: после показа курсов переводим в Stage.FOCUS,
+            # чтобы следующий ответ ("курс" / "тариф") обработался.
+            st.stage = Stage.FOCUS
+            await db_upsert_user(st)
+            
             follow = (
                 "Подскажите, пожалуйста:\n"
                 "Вы хотите выбрать **конкретный курс** или удобнее рассмотреть **тариф**, "
-                "чтобы получить доступ сразу к нескольким направлениям? 🙂"
+                "чтобы получить доступ сразу к нескольким направлениям? 🙂\n\n"
+                "Можно ответить словом «курс/тариф» или цифрой:\n"
+                "1) курс\n"
+                "2) тариф"
             )
             await db_add_message(user_id, "assistant", follow)
             await send_text(message, follow)
@@ -1335,6 +1445,105 @@ async def on_text(message: Message):
         await send_text(message, msg)
         return
 
+    # ---- 2) focus stage: course/tariff or not sure ----
+    if st.stage == Stage.FOCUS:
+        t = normalize_text(text)
+
+        # поддержим ответы 1/2 после твоего вопроса
+        wants_course = t in {"1", "1.", "курс", "конкретный курс", "хочу курс", "выбрать курс"}
+        wants_tariff = t in {"2", "2.", "тариф", "тарифы", "хочу тариф", "сравнить тарифы"}
+
+        # также поймаем "курс" / "тариф" в тексте
+        if (not wants_course) and ("курс" in t) and ("тариф" not in t):
+            wants_course = True
+        if (not wants_tariff) and ("тариф" in t):
+            wants_tariff = True
+
+        if wants_course:
+            # (опционально) покажем короткий список курсов из YAML
+            courses = kb.get("courses", []) or []
+            if courses:
+                lines = []
+                for c in courses[:25]:  # чтобы не раздувать сообщения
+                    title = (c.get("title") or "").strip()
+                    if title:
+                        lines.append(f"• {title}")
+                if lines:
+                    msg0 = "Вот основные курсы, которые есть сейчас:\n" + "\n".join(lines)
+                    await db_add_message(user_id, "assistant", msg0)
+                    await send_text(message, msg0)
+
+            st.stage = Stage.NORMAL
+            await db_upsert_user(st)
+
+            msg = (
+                "Отлично 🙂\n\n"
+                "Напишите, пожалуйста, **название курса** (как в списке) — "
+                "и я пришлю **описание, цену и макет**."
+            )
+            await db_add_message(user_id, "assistant", msg)
+            await send_text(message, msg)
+            return
+
+        if wants_tariff:
+            # покажем тарифы из knowledge.yaml
+            tariffs = kb.tariffs()
+            if tariffs:
+                lines = []
+                for tr in tariffs:
+                    title = (tr.get("title") or "").strip()
+                    price = tr.get("price_rub")
+                    if title and price:
+                        lines.append(f"• {title} — {price} ₽")
+                    elif title:
+                        lines.append(f"• {title}")
+
+                msg0 = "Актуальные тарифы:\n" + "\n".join(lines)
+                await db_add_message(user_id, "assistant", msg0)
+                await send_text(message, msg0)
+
+                st.stage = Stage.NORMAL
+                await db_upsert_user(st)
+
+                msg = (
+                    "Подскажите, пожалуйста, **какой тариф** хотите рассмотреть подробнее? 🙂\n"
+                    "Напишите его название — и я пришлю состав, стоимость и материалы."
+                )
+                await db_add_message(user_id, "assistant", msg)
+                await send_text(message, msg)
+                return
+
+            # если тарифов нет в базе
+            st.stage = Stage.NORMAL
+            await db_upsert_user(st)
+            msg = (
+                "Пока не вижу тарифы в базе 🙈\n\n"
+                "Напишите, пожалуйста, что удобнее: выбрать **конкретный курс** или уточнить у куратора по тарифам?"
+            )
+            await db_add_message(user_id, "assistant", msg)
+            await send_text(message, msg)
+            return
+
+        # если пользователь пишет “не знаю / не уверен”
+        if any(w in t for w in ["не знаю", "не уверен", "не уверена", "помоги выбрать", "подскажи", "подскажите"]):
+            st.stage = Stage.NORMAL
+            await db_upsert_user(st)
+
+            msg = (
+                "Поняла Вас 🙂\n\n"
+                "Чтобы я предложила 1–3 варианта под Вашу цель, уточните, пожалуйста:\n"
+                "1) Сколько времени в неделю Вы готовы уделять обучению?\n"
+                "2) Есть ли уже опыт/навыки в онлайне (например: дизайн, тексты, соцсети, маркетплейсы)?"
+            )
+            await db_add_message(user_id, "assistant", msg)
+            await send_text(message, msg)
+            return
+
+        # иначе — отпустим в NORMAL: там поймается название курса/тарифа через kb.find_best()
+        st.stage = Stage.NORMAL
+        await db_upsert_user(st)
+        # без return — пусть дальше обработается общий поиск
+    
     # 3.3 Гостевой доступ
     if any(w in qn for w in ["гост", "ключ", "пробн", "демо"]):
         ga = kb.guest_access()
